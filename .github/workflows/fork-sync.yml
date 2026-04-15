@@ -1,0 +1,40 @@
+name: Sync upstream
+
+on:
+  schedule:
+    # Daily at 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch and merge upstream
+        run: |
+          git remote add upstream https://github.com/anomalyco/opencode.git || true
+          git fetch upstream dev
+          if git merge upstream/dev --no-edit; then
+            echo "MERGED=true" >> "$GITHUB_ENV"
+          else
+            echo "Merge conflict — skipping. Resolve manually."
+            git merge --abort
+            echo "MERGED=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Push
+        if: env.MERGED == 'true'
+        run: git push origin dev
