@@ -30,49 +30,60 @@ git remote add upstream https://github.com/anomalyco/opencode.git
 bun install
 ```
 
-## Build and install
+## Usage
+
+### Do everything in one shot
 
 ```bash
 cd ~/opencode
-./packages/opencode/script/build.ts --single
-cp packages/opencode/dist/opencode-linux-x64/bin/opencode ~/.opencode/bin/opencode
+make update    # sync upstream + build + install
 ```
 
-The binary lands at `~/.opencode/bin/opencode`, replacing the auto-updated release.
+Quit OpenCode first — the binary can't be overwritten while running.
 
-> **Note:** OpenCode's auto-updater will overwrite your custom build on next
-> start if `autoupdate` is enabled. To prevent this, set `"autoupdate": false`
-> in `~/.config/opencode/opencode.json`.
-
-## Sync with upstream
+### Individual steps
 
 ```bash
-cd ~/opencode
-git fetch upstream
-git merge upstream/dev
-git push origin dev
+make sync      # fetch upstream dev and merge
+make build     # install deps and compile binary
+make install   # back up current binary, install new build
 ```
 
-Then rebuild and install (see above).
-
-## Restore the official release
+### Restore official release
 
 ```bash
-# If you kept the backup:
-cp ~/.opencode/bin/opencode.1.4.6.bak ~/.opencode/bin/opencode
-
-# Or re-enable auto-update and restart:
-# Set "autoupdate": true in opencode.json, then restart opencode.
+make uninstall   # restore backed-up binary
 ```
 
-## OpenCode config for local llama-server vision
+Or set `"autoupdate": true` in `opencode.json` and restart.
 
-The `modalities` config is required for image support with custom providers.
-This is what makes clipboard image paste work with llama-server:
+### All targets
+
+```
+make update       Sync upstream + build + install (do it all)
+make sync         Fetch upstream dev and merge
+make build        Install deps and compile binary
+make install      Back up current binary and install new build
+make uninstall    Restore backed-up official binary
+make clean        Remove build artifacts
+```
+
+## Automated upstream sync
+
+A GitHub Action (`.github/workflows/fork-sync.yml`) syncs upstream `dev` daily
+at 06:00 UTC. If there's a merge conflict, it skips and you resolve manually.
+
+You can also trigger it manually from the Actions tab.
+
+## OpenCode config
+
+Disable auto-update so the official release doesn't overwrite your build.
+The `modalities` config is required for vision support with custom providers:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
+  "autoupdate": false,
   "provider": {
     "llama-server": {
       "npm": "@ai-sdk/openai-compatible",
@@ -95,6 +106,8 @@ This is what makes clipboard image paste work with llama-server:
 }
 ```
 
-Without the dev build, `modalities` is parsed but not applied at runtime —
-images get replaced with `ERROR: Cannot read "clipboard" (this model does not
-support image input)`.
+## Branch strategy
+
+- `dev` = upstream `dev` + our additive files (FORK.md, Makefile, workflow)
+- Upstream merges cleanly because our changes are new files only
+- No source code patches — we just build from upstream dev which has the fixes
