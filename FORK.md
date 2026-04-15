@@ -106,6 +106,61 @@ The `modalities` config is required for vision support with custom providers:
 }
 ```
 
+## Channel database isolation
+
+Building from the `dev` branch bakes `CHANNEL = "dev"` into the binary (via
+`packages/script/src/index.ts:26-30` — it falls back to `git branch --show-current`
+when no `OPENCODE_CHANNEL` env var is set at build time). At runtime, the channel
+determines the database filename (`packages/opencode/src/storage/db.ts:31-35`):
+
+| Channel | Database file |
+|---------|---------------|
+| `latest`, `beta`, `prod` | `opencode.db` |
+| `dev` (this fork) | `opencode-dev.db` |
+| `local` (unbundled `bun run`) | `opencode-local.db` |
+
+Both databases live in `~/.local/share/opencode/`. Sessions created with the
+official release (`opencode.db`) are invisible to the dev build (`opencode-dev.db`)
+and vice versa. If you see `Session not found` errors after switching builds,
+this is why.
+
+### Using the main database with dev builds
+
+Set one of these environment variables at **runtime**:
+
+```bash
+# Force the main opencode.db regardless of channel
+OPENCODE_DISABLE_CHANNEL_DB=1 opencode
+
+# Or point to a specific database file
+OPENCODE_DB=opencode.db opencode
+```
+
+Alternatively, set the channel at **build time** so it matches the official release:
+
+```bash
+OPENCODE_CHANNEL=latest make build
+```
+
+Add the runtime var to your shell profile if you always want the dev build to
+share the main database:
+
+```bash
+# ~/.zshrc or ~/.bashrc
+export OPENCODE_DISABLE_CHANNEL_DB=1
+```
+
+### Database env vars (undocumented upstream)
+
+These are defined in `packages/opencode/src/flag/flag.ts:82-84` but not listed
+in the official CLI docs (`packages/web/src/content/docs/cli.mdx`):
+
+| Variable | Type | Effect |
+|----------|------|--------|
+| `OPENCODE_DB` | string | Override DB path (absolute, relative to data dir, or `:memory:`) |
+| `OPENCODE_DISABLE_CHANNEL_DB` | boolean | Ignore channel, always use `opencode.db` |
+| `OPENCODE_SKIP_MIGRATIONS` | boolean | Replace all migration SQL with `select 1` |
+
 ## Branch strategy
 
 - `dev` = upstream `dev` + our additive files (FORK.md, Makefile, workflow)
