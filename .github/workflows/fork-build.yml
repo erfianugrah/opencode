@@ -1,0 +1,43 @@
+name: build
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-bun
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Build CLI (linux-x64)
+        run: ./packages/opencode/script/build.ts --single
+
+      - name: Smoke test
+        run: |
+          BINARY=$(find packages/opencode/dist -name opencode -type f | head -1)
+          echo "Binary: $BINARY"
+          $BINARY --version
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-linux-x64
+          retention-days: 30
+          path: packages/opencode/dist/opencode-linux-x64/bin/opencode
