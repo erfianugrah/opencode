@@ -35,6 +35,24 @@ jobs:
             echo "MERGED=false" >> "$GITHUB_ENV"
           fi
 
+      - name: Re-apply fork patches
+        if: env.MERGED == 'true'
+        run: |
+          # Replace Blacksmith runners with GitHub-hosted equivalents
+          sed -i \
+            -e 's/blacksmith-[0-9]*vcpu-ubuntu-[0-9]*/ubuntu-latest/g' \
+            -e 's/blacksmith-[0-9]*vcpu-windows-[0-9]*/windows-latest/g' \
+            .github/workflows/test.yml \
+            .github/workflows/typecheck.yml \
+            .github/workflows/nix-eval.yml
+
+          if git diff --quiet; then
+            echo "No fork patches needed"
+          else
+            git add .github/workflows/
+            git commit -m "chore(fork): re-apply github-hosted runner patches"
+          fi
+
       - name: Push
         if: env.MERGED == 'true'
         run: git push origin dev
