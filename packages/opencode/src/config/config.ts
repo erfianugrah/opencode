@@ -883,6 +883,12 @@ export namespace Config {
         .describe(
           "Enable or disable snapshot tracking. When false, filesystem snapshots are not recorded and undoing or reverting will not undo/redo file changes. Defaults to true.",
         ),
+      style: z
+        .enum(["terse", "socratic"])
+        .optional()
+        .describe(
+          "Output style. 'terse' (default): minimal tokens, drops filler, uses fragments. 'socratic': guided learning via questions and explanation of reasoning.",
+        ),
       plugin: PluginSpec.array().optional(),
       share: z
         .enum(["manual", "auto", "disabled"])

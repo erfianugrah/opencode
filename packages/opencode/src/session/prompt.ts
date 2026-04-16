@@ -31,6 +31,7 @@ import * as Stream from "effect/Stream"
 import { Command } from "../command"
 import { pathToFileURL, fileURLToPath } from "url"
 import { ConfigMarkdown } from "../config/markdown"
+import { Config } from "../config/config"
 import { SessionSummary } from "./summary"
 import { NamedError } from "@opencode-ai/util/error"
 import { SessionProcessor } from "./processor"
@@ -61,6 +62,26 @@ IMPORTANT:
 - This tool provides your final answer - no further actions are taken after calling it`
 
 const STRUCTURED_OUTPUT_SYSTEM_PROMPT = `IMPORTANT: The user has requested structured output. You MUST use the StructuredOutput tool to provide your final response. Do NOT respond with plain text - you MUST call the StructuredOutput tool with your answer formatted according to the schema.`
+
+const TERSE_PROMPT = `# Output Style: Terse
+Terse mode active. Technical accuracy preserved. Only prose fluff removed.
+Drop: articles (the/a/an), filler (just/really/basically/actually/however), pleasantries, hedging, unnecessary caveats.
+Fragments OK. Shortest clear phrasing. Code/commands/paths unchanged.
+Pattern: [what] [action] [why]. No preamble. No postamble.
+Code blocks, technical terms, file paths: verbatim. Never compress code.
+Switch to socratic mode: set style="socratic" in opencode config.`
+
+const SOCRATIC_PROMPT = `# Output Style: Socratic
+Guide user to discover answers through questions and structured reasoning.
+- Ask probing questions before giving direct solutions
+- Break problems into smaller pieces for user to reason through
+- Explain WHY not just WHAT — teach underlying concepts and mental models
+- When user is stuck, give graduated hints before full answers
+- After solving, ask "what would happen if..." to deepen understanding
+- Use examples and analogies to illustrate concepts
+- Encourage user to verify their own understanding
+Code changes: still implement when asked, but explain reasoning and tradeoffs.
+Switch to terse mode: set style="terse" in opencode config.`
 
 export namespace SessionPrompt {
   const log = Log.create({ service: "session.prompt" })
@@ -104,6 +125,7 @@ export namespace SessionPrompt {
       const summary = yield* SessionSummary.Service
       const sys = yield* SystemPrompt.Service
       const llm = yield* LLM.Service
+      const cfg = yield* Config.Service
       const runner = Effect.fn("SessionPrompt.runner")(function* () {
         const ctx = yield* Effect.context()
         return {
@@ -282,74 +304,44 @@ export namespace SessionPrompt {
           sessionID: userMessage.info.sessionID,
           type: "text",
           text: `<system-reminder>
-Plan mode is active. The user indicated that they do not want you to execute yet -- you MUST NOT make any edits (with the exception of the plan file mentioned below), run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supersedes any other instructions you have received.
+Plan mode active. MUST NOT edit (except plan file below), run non-readonly tools, change configs, or commit. Supersedes all other instructions.
 
-## Plan File Info:
-${exists ? `A plan file already exists at ${plan}. You can read it and make incremental edits using the edit tool.` : `No plan file exists yet. You should create your plan at ${plan} using the write tool.`}
-You should build your plan incrementally by writing to or editing this file. NOTE that this is the only file you are allowed to edit - other than this you are only allowed to take READ-ONLY actions.
+## Plan File
+${exists ? `Plan exists at ${plan}. Read and edit incrementally.` : `No plan yet. Create at ${plan}.`}
+Only file you may edit. Otherwise READ-ONLY only.
 
-## Plan Workflow
+## Workflow
 
-### Phase 1: Initial Understanding
-Goal: Gain a comprehensive understanding of the user's request by reading through code and asking them questions. Critical: In this phase you should only use the explore subagent type.
-
-1. Focus on understanding the user's request and the code associated with their request
-
-2. **Launch up to 3 explore agents IN PARALLEL** (single message, multiple tool calls) to efficiently explore the codebase.
-   - Use 1 agent when the task is isolated to known files, the user provided specific file paths, or you're making a small targeted change.
-   - Use multiple agents when: the scope is uncertain, multiple areas of the codebase are involved, or you need to understand existing patterns before planning.
-   - Quality over quantity - 3 agents maximum, but you should try to use the minimum number of agents necessary (usually just 1)
-   - If using multiple agents: Provide each agent with a specific search focus or area to explore. Example: One agent searches for existing implementations, another explores related components, a third investigates testing patterns
-
-3. After exploring the code, use the question tool to clarify ambiguities in the user request up front.
+### Phase 1: Understand
+Explore code, ask questions. Use explore subagent type ONLY.
+1. Understand request and related code
+2. Launch up to 3 explore agents IN PARALLEL (single message, multiple tool calls)
+   - 1 agent: isolated/known files, specific paths, small changes
+   - Multiple: uncertain scope, multiple areas, pattern discovery
+   - 3 max, prefer minimum (usually 1). Each gets specific focus
+3. Question tool to clarify ambiguities after exploring
 
 ### Phase 2: Design
-Goal: Design an implementation approach.
-
-Launch general agent(s) to design the implementation based on the user's intent and your exploration results from Phase 1.
-
-You can launch up to 1 agent(s) in parallel.
-
-**Guidelines:**
-- **Default**: Launch at least 1 Plan agent for most tasks - it helps validate your understanding and consider alternatives
-- **Skip agents**: Only for truly trivial tasks (typo fixes, single-line changes, simple renames)
-
-Examples of when to use multiple agents:
-- The task touches multiple parts of the codebase
-- It's a large refactor or architectural change
-- There are many edge cases to consider
-- You'd benefit from exploring different approaches
-
-Example perspectives by task type:
-- New feature: simplicity vs performance vs maintainability
-- Bug fix: root cause vs workaround vs prevention
-- Refactoring: minimal change vs clean architecture
-
-In the agent prompt:
-- Provide comprehensive background context from Phase 1 exploration including filenames and code path traces
-- Describe requirements and constraints
-- Request a detailed implementation plan
+Launch up to 1 general agent from Phase 1 results.
+- Default: 1 agent. Skip for trivial (typos, single-line)
+- Multiple for: multi-area, large refactors, many edge cases
+- Prompt: Phase 1 context with filenames/code paths, requirements, constraints
 
 ### Phase 3: Review
-Goal: Review the plan(s) from Phase 2 and ensure alignment with the user's intentions.
-1. Read the critical files identified by agents to deepen your understanding
-2. Ensure that the plans align with the user's original request
-3. Use question tool to clarify any remaining questions with the user
+1. Read critical files from agents
+2. Verify plans align with user request
+3. Question tool for remaining clarifications
 
 ### Phase 4: Final Plan
-Goal: Write your final plan to the plan file (the only file you can edit).
-- Include only your recommended approach, not all alternatives
-- Ensure that the plan file is concise enough to scan quickly, but detailed enough to execute effectively
-- Include the paths of critical files to be modified
-- Include a verification section describing how to test the changes end-to-end (run the code, use MCP tools, run tests)
+Write to plan file (only editable file):
+- Recommended approach only
+- Concise to scan, detailed to execute
+- Include critical file paths + verification section (test/run/MCP)
 
-### Phase 5: Call plan_exit tool
-At the very end of your turn, once you have asked the user questions and are happy with your final plan file - you should always call plan_exit to indicate to the user that you are done planning.
-This is critical - your turn should only end with either asking the user a question or calling plan_exit. Do not stop unless it's for these 2 reasons.
+### Phase 5: plan_exit
+End turn with: question to user OR plan_exit. Never question tool for "Is this plan okay?" — use plan_exit.
 
-**Important:** Use question tool to clarify requirements/approach, use plan_exit to request plan approval. Do NOT use question tool to ask "Is this plan okay?" - that's what plan_exit does.
-
-NOTE: At any point in time through this workflow you should feel free to ask the user questions or clarifications. Don't make large assumptions about user intent. The goal is to present a well researched plan to the user, and tie any loose ends before implementation begins.
+Ask questions anytime. Don't assume intent.
 </system-reminder>`,
           synthetic: true,
         })
@@ -1482,13 +1474,15 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
               yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
-              const [skills, env, instructions, modelMsgs] = yield* Effect.all([
+              const [skills, env, instructions, config, modelMsgs] = yield* Effect.all([
                 sys.skills(agent),
                 Effect.sync(() => sys.environment(model)),
                 instruction.system().pipe(Effect.orDie),
+                cfg.get(),
                 MessageV2.toModelMessagesEffect(msgs, model),
               ])
-              const system = [...env, ...(skills ? [skills] : []), ...instructions]
+              const style = config.style === "socratic" ? SOCRATIC_PROMPT : TERSE_PROMPT
+              const system = [...env, ...(skills ? [skills] : []), ...instructions, style]
               const format = lastUser.format ?? { type: "text" as const }
               if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
               const result = yield* handle.process({
@@ -1700,6 +1694,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       Layer.provide(Instruction.defaultLayer),
       Layer.provide(AppFileSystem.defaultLayer),
       Layer.provide(Plugin.defaultLayer),
+      Layer.provide(Config.defaultLayer),
       Layer.provide(Session.defaultLayer),
       Layer.provide(SessionRevert.defaultLayer),
       Layer.provide(SessionSummary.defaultLayer),

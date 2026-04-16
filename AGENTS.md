@@ -126,3 +126,17 @@ const table = sqliteTable("session", {
 ## Type Checking
 
 - Always run `bun typecheck` from package directories (e.g., `packages/opencode`), never `tsc` directly.
+
+## Output Style
+
+Configurable via `style` in `opencode.json`:
+
+```jsonc
+{ "style": "terse" }    // default — minimal tokens, drops filler, fragments OK
+{ "style": "socratic" } // learning mode — probing questions, explains reasoning
+```
+
+- `terse` + `socratic` are orthogonal to `build` + `plan` modes (all 4 combinations work)
+- Style is injected into the system prompt at `packages/opencode/src/session/prompt.ts`
+- Config schema at `packages/opencode/src/config/config.ts` (field: `style`)
+- Prompt constants: `TERSE_PROMPT` and `SOCRATIC_PROMPT` in `prompt.ts`
