@@ -112,6 +112,20 @@ This is used internally and can be invoked using `@general` in messages.
 
 Learn more about [agents](https://opencode.ai/docs/agents).
 
+### Output Style (Fork)
+
+This fork adds a `style` config option that controls how the agent communicates:
+
+```jsonc
+// opencode.json
+{ "style": "terse" }    // default — minimal tokens, drops filler, fragments OK
+{ "style": "socratic" } // learning mode — probing questions, explains reasoning
+```
+
+- **terse** + **socratic** are orthogonal to **build** + **plan** (all 4 combinations work)
+- Toggle in-session: `/style terse`, `/style socratic`, or `/style` to toggle
+- System prompts are compressed ~50% to reduce input tokens on every message
+
 ### Documentation
 
 For more info on how to configure OpenCode, [**head over to our docs**](https://opencode.ai/docs).

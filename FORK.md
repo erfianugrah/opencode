@@ -113,10 +113,10 @@ Building from the `dev` branch bakes `CHANNEL = "dev"` into the binary (via
 when no `OPENCODE_CHANNEL` env var is set at build time). At runtime, the channel
 determines the database filename (`packages/opencode/src/storage/db.ts:31-35`):
 
-| Channel | Database file |
-|---------|---------------|
-| `latest`, `beta`, `prod` | `opencode.db` |
-| `dev` (this fork) | `opencode-dev.db` |
+| Channel                       | Database file       |
+| ----------------------------- | ------------------- |
+| `latest`, `beta`, `prod`      | `opencode.db`       |
+| `dev` (this fork)             | `opencode-dev.db`   |
 | `local` (unbundled `bun run`) | `opencode-local.db` |
 
 Both databases live in `~/.local/share/opencode/`. Sessions created with the
@@ -155,14 +155,30 @@ export OPENCODE_DISABLE_CHANNEL_DB=1
 These are defined in `packages/opencode/src/flag/flag.ts:82-84` but not listed
 in the official CLI docs (`packages/web/src/content/docs/cli.mdx`):
 
-| Variable | Type | Effect |
-|----------|------|--------|
-| `OPENCODE_DB` | string | Override DB path (absolute, relative to data dir, or `:memory:`) |
-| `OPENCODE_DISABLE_CHANNEL_DB` | boolean | Ignore channel, always use `opencode.db` |
-| `OPENCODE_SKIP_MIGRATIONS` | boolean | Replace all migration SQL with `select 1` |
+| Variable                      | Type    | Effect                                                           |
+| ----------------------------- | ------- | ---------------------------------------------------------------- |
+| `OPENCODE_DB`                 | string  | Override DB path (absolute, relative to data dir, or `:memory:`) |
+| `OPENCODE_DISABLE_CHANNEL_DB` | boolean | Ignore channel, always use `opencode.db`                         |
+| `OPENCODE_SKIP_MIGRATIONS`    | boolean | Replace all migration SQL with `select 1`                        |
+
+## Output style (fork feature)
+
+This fork adds a `style` config option that controls output verbosity:
+
+```jsonc
+// opencode.json
+{ "style": "terse" }    // default — minimal tokens, drops filler, fragments OK
+{ "style": "socratic" } // learning mode — probing questions, explains reasoning
+```
+
+- Orthogonal to build/plan modes (all 4 combinations work)
+- Toggle in-session: `/style terse`, `/style socratic`, or `/style` to toggle
+- System prompts compressed ~50% to reduce input tokens every message
+- Config schema: `packages/opencode/src/config/config.ts` (field: `style`)
+- Prompt constants: `TERSE_PROMPT` / `SOCRATIC_PROMPT` in `packages/opencode/src/session/prompt.ts`
 
 ## Branch strategy
 
-- `dev` = upstream `dev` + our additive files (FORK.md, Makefile, workflow)
-- Upstream merges cleanly because our changes are new files only
-- No source code patches — we just build from upstream dev which has the fixes
+- `dev` = upstream `dev` + fork modifications
+- Fork changes: compressed system prompts, style toggle, /style command, removed dead prompt files
+- Upstream merges may need conflict resolution in modified `.txt` prompt files
