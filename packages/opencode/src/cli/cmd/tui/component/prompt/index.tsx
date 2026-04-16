@@ -656,6 +656,19 @@ export function Prompt(props: PromptProps) {
     const currentMode = store.mode
     const variant = local.model.variant.current()
 
+    // Intercept UI-registered slash commands (e.g. /style) before anything else
+    if (inputText.startsWith("/")) {
+      const name = inputText.split(/[\s\n]/)[0].slice(1)
+      const match = command.slashes().find((s) => s.display.trim() === "/" + name)
+      if (match) {
+        match.onSelect?.()
+        input.extmarks.clear()
+        setStore("prompt", { input: "", parts: [] })
+        setStore("extmarkToPartIndex", new Map())
+        return
+      }
+    }
+
     if (store.mode === "shell") {
       sdk.client.session.shell({
         sessionID,
@@ -671,11 +684,6 @@ export function Prompt(props: PromptProps) {
       inputText.startsWith("/") &&
       iife(() => {
         const name = inputText.split(/[\s\n]/)[0].slice(1)
-        const match = command.slashes().find((s) => s.display.trim() === "/" + name)
-        if (match) {
-          match.onSelect?.()
-          return false
-        }
         return sync.data.command.some((x) => x.name === name)
       })
     ) {
