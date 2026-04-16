@@ -718,6 +718,7 @@ export function Prompt(props: PromptProps) {
           agent: local.agent.current().name,
           model: selectedModel,
           variant,
+          system: local.style.current(),
           parts: [
             {
               id: PartID.ascending(),

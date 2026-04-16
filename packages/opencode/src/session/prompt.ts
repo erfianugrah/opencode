@@ -1474,14 +1474,14 @@ Ask questions anytime. Don't assume intent.
 
               yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
-              const [skills, env, instructions, config, modelMsgs] = yield* Effect.all([
+              const [skills, env, instructions, modelMsgs] = yield* Effect.all([
                 sys.skills(agent),
                 Effect.sync(() => sys.environment(model)),
                 instruction.system().pipe(Effect.orDie),
-                cfg.get(),
                 MessageV2.toModelMessagesEffect(msgs, model),
               ])
-              const style = config.style === "socratic" ? SOCRATIC_PROMPT : TERSE_PROMPT
+              const mode = lastUser.system ?? (yield* cfg.get()).style
+              const style = mode === "socratic" ? SOCRATIC_PROMPT : TERSE_PROMPT
               const system = [...env, ...(skills ? [skills] : []), ...instructions, style]
               const format = lastUser.format ?? { type: "text" as const }
               if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
