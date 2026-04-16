@@ -1,0 +1,14 @@
+Update the "style" field in the project's opencode.json config file.
+
+If argument "$1" is "terse" or "socratic", set style to that value.
+If no argument or empty, read current config and toggle: terse→socratic, socratic→terse, unset→socratic.
+
+Valid values:
+- "terse": minimal tokens, drops filler, fragments OK (default)
+- "socratic": guided learning, probing questions, explains reasoning
+
+Rules:
+- Only modify the "style" field. Preserve all other config fields.
+- Use Edit tool, not Write.
+- If opencode.json doesn't exist, create it with just: {"style": "<value>"}
+- Confirm the change in one short sentence.

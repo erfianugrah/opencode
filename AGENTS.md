@@ -137,6 +137,7 @@ Configurable via `style` in `opencode.json`:
 ```
 
 - `terse` + `socratic` are orthogonal to `build` + `plan` modes (all 4 combinations work)
+- Toggle in-session: `/style terse` or `/style socratic` (or `/style` to toggle)
 - Style is injected into the system prompt at `packages/opencode/src/session/prompt.ts`
 - Config schema at `packages/opencode/src/config/config.ts` (field: `style`)
 - Prompt constants: `TERSE_PROMPT` and `SOCRATIC_PROMPT` in `prompt.ts`
