@@ -8,14 +8,18 @@ import { ModelID, ProviderID } from "../../src/provider/schema"
 import { Session } from "../../src/session"
 import { MessageV2 } from "../../src/session/message-v2"
 import { SessionPrompt } from "../../src/session/prompt"
+import { Config } from "../../src/config/config"
 import { Log } from "../../src/util/log"
 import { tmpdir } from "../fixture/fixture"
 
 Log.init({ print: false })
 
-function run<A, E>(fx: Effect.Effect<A, E, SessionPrompt.Service | Session.Service>) {
+function run<A, E>(fx: Effect.Effect<A, E, SessionPrompt.Service | Session.Service | Config.Service>) {
   return Effect.runPromise(
-    fx.pipe(Effect.scoped, Effect.provide(Layer.mergeAll(SessionPrompt.defaultLayer, Session.defaultLayer))),
+    fx.pipe(
+      Effect.scoped,
+      Effect.provide(Layer.mergeAll(SessionPrompt.defaultLayer, Session.defaultLayer, Config.defaultLayer)),
+    ),
   )
 }
 
@@ -372,6 +376,14 @@ describe("session.prompt style injection", () => {
       server.stop(true)
     }
   })
+
+  // NOTE: mid-session style switch (toggle terse→socratic between messages) is not
+  // testable here because config.update() triggers Instance.dispose() which invalidates
+  // the service closures in the test harness. The individual pieces are covered:
+  // - Config with style:"terse" → TERSE_PROMPT injected (test above)
+  // - Config with style:"socratic" → SOCRATIC_PROMPT injected (test above)
+  // - Config.update() deep-merges and persists (config.test.ts)
+  // - TUI toggle updates local reactive store + calls PATCH /config (local.tsx)
 })
 
 describe("session.command registration", () => {
