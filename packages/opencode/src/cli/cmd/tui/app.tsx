@@ -617,8 +617,9 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
       onSelect: async (dialog) => {
         const current = sync.data.config.style
         const next = current === "socratic" ? "terse" : "socratic"
+        sync.set("config", "style", next)
         await sdk.client.config.update({ config: { style: next } }).catch(() => {})
-        toast.show({ message: `Style: ${next}`, variant: "success" })
+        toast.show({ message: `Style → ${next}`, variant: "success" })
         dialog.clear()
       },
     },
