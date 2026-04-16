@@ -607,19 +607,15 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
       category: "System",
     },
     {
-      title: `Switch to ${sync.data.config.style === "socratic" ? "terse" : "socratic"} style`,
-      description: `Current: ${sync.data.config.style ?? "terse"}`,
+      title: `Switch to ${local.style.current() === "socratic" ? "terse" : "socratic"} style`,
+      description: `Current: ${local.style.current()}`,
       value: "style.toggle",
       slash: {
         name: "style",
       },
       category: "System",
-      onSelect: async (dialog) => {
-        const current = sync.data.config.style
-        const next = current === "socratic" ? "terse" : "socratic"
-        sync.set("config", "style", next)
-        await sdk.client.config.update({ config: { style: next } }).catch(() => {})
-        toast.show({ message: `Style → ${next}`, variant: "success" })
+      onSelect: (dialog) => {
+        local.style.toggle()
         dialog.clear()
       },
     },

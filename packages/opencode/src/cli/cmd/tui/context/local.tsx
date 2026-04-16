@@ -402,10 +402,32 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       }
     })
 
+    const style = iife(() => {
+      const [store, set] = createStore<{ current: "terse" | "socratic" }>({
+        current: (sync.data.config.style as "terse" | "socratic") ?? "terse",
+      })
+      return {
+        current() {
+          return store.current
+        },
+        toggle() {
+          const next = store.current === "socratic" ? "terse" : "socratic"
+          set("current", next)
+          sdk.client.config.update({ config: { style: next } }).catch(() => {})
+          toast.show({ message: `Style → ${next}`, variant: "success" })
+        },
+        set(value: "terse" | "socratic") {
+          set("current", value)
+          sdk.client.config.update({ config: { style: value } }).catch(() => {})
+        },
+      }
+    })
+
     const result = {
       model,
       agent,
       mcp,
+      style,
     }
     return result
   },
