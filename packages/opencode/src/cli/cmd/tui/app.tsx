@@ -607,7 +607,8 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
       category: "System",
     },
     {
-      title: `Style: ${sync.data.config.style === "socratic" ? "socratic" : "terse"} (toggle)`,
+      title: `Switch to ${sync.data.config.style === "socratic" ? "terse" : "socratic"} style`,
+      description: `Current: ${sync.data.config.style ?? "terse"}`,
       value: "style.toggle",
       slash: {
         name: "style",

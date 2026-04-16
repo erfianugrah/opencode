@@ -670,9 +670,13 @@ export function Prompt(props: PromptProps) {
     } else if (
       inputText.startsWith("/") &&
       iife(() => {
-        const firstLine = inputText.split("\n")[0]
-        const command = firstLine.split(" ")[0].slice(1)
-        return sync.data.command.some((x) => x.name === command)
+        const name = inputText.split(/[\s\n]/)[0].slice(1)
+        const match = command.slashes().find((s) => s.display.trim() === "/" + name)
+        if (match) {
+          match.onSelect?.()
+          return false
+        }
+        return sync.data.command.some((x) => x.name === name)
       })
     ) {
       // Parse command from first line, preserve multi-line content in arguments
