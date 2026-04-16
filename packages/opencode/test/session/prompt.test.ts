@@ -374,6 +374,164 @@ describe("session.prompt style injection", () => {
   })
 })
 
+describe("session.command registration", () => {
+  test("style command resolves and sends template to LLM", async () => {
+    let captured: any
+    const server = Bun.serve({
+      port: 0,
+      async fetch(req) {
+        const url = new URL(req.url)
+        if (!url.pathname.endsWith("/chat/completions")) {
+          return new Response("not found", { status: 404 })
+        }
+        captured = await req.json()
+        return new Response(chat("Style set to terse."), {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        })
+      },
+    })
+
+    try {
+      await using tmp = await tmpdir({
+        git: true,
+        init: async (dir) => {
+          await Bun.write(
+            path.join(dir, "opencode.json"),
+            JSON.stringify({
+              enabled_providers: ["alibaba"],
+              provider: {
+                alibaba: {
+                  options: { apiKey: "test-key", baseURL: `${server.url.origin}/v1` },
+                },
+              },
+              agent: { build: { model: "alibaba/qwen-plus" } },
+            }),
+          )
+        },
+      })
+
+      await Instance.provide({
+        directory: tmp.path,
+        fn: () =>
+          run(
+            Effect.gen(function* () {
+              const prompt = yield* SessionPrompt.Service
+              const sessions = yield* Session.Service
+              const session = yield* sessions.create({})
+              yield* prompt.command({
+                sessionID: session.id,
+                command: "style",
+                arguments: "terse",
+              })
+            }),
+          ),
+      })
+
+      expect(captured).toBeDefined()
+      const text = JSON.stringify(captured.messages)
+      expect(text).toContain("style")
+      expect(text).toContain("terse")
+    } finally {
+      server.stop(true)
+    }
+  })
+
+  test("style command with no argument includes toggle instruction", async () => {
+    let captured: any
+    const server = Bun.serve({
+      port: 0,
+      async fetch(req) {
+        const url = new URL(req.url)
+        if (!url.pathname.endsWith("/chat/completions")) {
+          return new Response("not found", { status: 404 })
+        }
+        captured = await req.json()
+        return new Response(chat("Toggled to socratic."), {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        })
+      },
+    })
+
+    try {
+      await using tmp = await tmpdir({
+        git: true,
+        init: async (dir) => {
+          await Bun.write(
+            path.join(dir, "opencode.json"),
+            JSON.stringify({
+              enabled_providers: ["alibaba"],
+              provider: {
+                alibaba: {
+                  options: { apiKey: "test-key", baseURL: `${server.url.origin}/v1` },
+                },
+              },
+              agent: { build: { model: "alibaba/qwen-plus" } },
+            }),
+          )
+        },
+      })
+
+      await Instance.provide({
+        directory: tmp.path,
+        fn: () =>
+          run(
+            Effect.gen(function* () {
+              const prompt = yield* SessionPrompt.Service
+              const sessions = yield* Session.Service
+              const session = yield* sessions.create({})
+              yield* prompt.command({
+                sessionID: session.id,
+                command: "style",
+                arguments: "",
+              })
+            }),
+          ),
+      })
+
+      expect(captured).toBeDefined()
+      const text = JSON.stringify(captured.messages)
+      expect(text).toContain("toggle")
+    } finally {
+      server.stop(true)
+    }
+  })
+
+  test("unknown command error lists style in available commands", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: () =>
+        run(
+          Effect.gen(function* () {
+            const prompt = yield* SessionPrompt.Service
+            const sessions = yield* Session.Service
+            const session = yield* sessions.create({})
+            const err = yield* Effect.promise(() =>
+              Effect.runPromise(
+                prompt.command({
+                  sessionID: session.id,
+                  command: "nonexistent-xyz",
+                  arguments: "",
+                }),
+              ).then(
+                () => undefined,
+                (e) => e,
+              ),
+            )
+            expect(NamedError.Unknown.isInstance(err)).toBe(true)
+            if (NamedError.Unknown.isInstance(err)) {
+              expect(err.data.message).toContain("style")
+              expect(err.data.message).toContain("init")
+              expect(err.data.message).toContain("review")
+            }
+          }),
+        ),
+    })
+  }, 30000)
+})
+
 describe("session.prompt regression", () => {
   test("does not loop empty assistant turns for a simple reply", async () => {
     let calls = 0
