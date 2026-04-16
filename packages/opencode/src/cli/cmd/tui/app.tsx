@@ -607,6 +607,21 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
       category: "System",
     },
     {
+      title: `Style: ${sync.data.config.style === "socratic" ? "socratic" : "terse"} (toggle)`,
+      value: "style.toggle",
+      slash: {
+        name: "style",
+      },
+      category: "System",
+      onSelect: async (dialog) => {
+        const current = sync.data.config.style
+        const next = current === "socratic" ? "terse" : "socratic"
+        await sdk.client.config.update({ config: { style: next } }).catch(() => {})
+        toast.show({ message: `Style: ${next}`, variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
       title: locked() ? "Unlock theme mode" : "Lock theme mode",
       value: "theme.mode.lock",
       onSelect: (dialog) => {

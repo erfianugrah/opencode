@@ -1494,6 +1494,10 @@ export type Config = {
    * Enable or disable snapshot tracking. When false, filesystem snapshots are not recorded and undoing or reverting will not undo/redo file changes. Defaults to true.
    */
   snapshot?: boolean
+  /**
+   * Output style. 'terse' (default): minimal tokens, drops filler, uses fragments. 'socratic': guided learning via questions and explanation of reasoning.
+   */
+  style?: "terse" | "socratic"
   plugin?: Array<
     | string
     | [
