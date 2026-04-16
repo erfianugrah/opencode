@@ -413,12 +413,12 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         toggle() {
           const next = store.current === "socratic" ? "terse" : "socratic"
           set("current", next)
-          sdk.client.config.update({ config: { style: next } }).catch(() => {})
+          sdk.client.global.config.update({ config: { style: next } }).catch(() => {})
           toast.show({ message: `Style → ${next}`, variant: "success" })
         },
         set(value: "terse" | "socratic") {
           set("current", value)
-          sdk.client.config.update({ config: { style: value } }).catch(() => {})
+          sdk.client.global.config.update({ config: { style: value } }).catch(() => {})
         },
       }
     })
