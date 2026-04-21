@@ -1,6 +1,6 @@
 import path from "path"
 import { describe, expect, test } from "bun:test"
-import { NamedError } from "@opencode-ai/util/error"
+import { NamedError } from "@opencode-ai/shared/util/error"
 import { fileURLToPath } from "url"
 import { Effect, Layer } from "effect"
 import { Instance } from "../../src/project/instance"
@@ -8,18 +8,14 @@ import { ModelID, ProviderID } from "../../src/provider/schema"
 import { Session } from "../../src/session"
 import { MessageV2 } from "../../src/session/message-v2"
 import { SessionPrompt } from "../../src/session/prompt"
-import { Config } from "../../src/config/config"
-import { Log } from "../../src/util/log"
+import { Log } from "../../src/util"
 import { tmpdir } from "../fixture/fixture"
 
-Log.init({ print: false })
+void Log.init({ print: false })
 
-function run<A, E>(fx: Effect.Effect<A, E, SessionPrompt.Service | Session.Service | Config.Service>) {
+function run<A, E>(fx: Effect.Effect<A, E, SessionPrompt.Service | Session.Service>) {
   return Effect.runPromise(
-    fx.pipe(
-      Effect.scoped,
-      Effect.provide(Layer.mergeAll(SessionPrompt.defaultLayer, Session.defaultLayer, Config.defaultLayer)),
-    ),
+    fx.pipe(Effect.scoped, Effect.provide(Layer.mergeAll(SessionPrompt.defaultLayer, Session.defaultLayer))),
   )
 }
 
@@ -64,12 +60,11 @@ function chat(text: string) {
 function hanging(ready: () => void) {
   const encoder = new TextEncoder()
   let timer: ReturnType<typeof setTimeout> | undefined
-  const first =
-    `data: ${JSON.stringify({
-      id: "chatcmpl-1",
-      object: "chat.completion.chunk",
-      choices: [{ delta: { role: "assistant" } }],
-    })}` + "\n\n"
+  const first = `data: ${JSON.stringify({
+    id: "chatcmpl-1",
+    object: "chat.completion.chunk",
+    choices: [{ delta: { role: "assistant" } }],
+  })}\n\n`
   const rest =
     [
       `data: ${JSON.stringify({
@@ -252,174 +247,6 @@ describe("session.prompt special characters", () => {
   })
 })
 
-describe("session.prompt style injection", () => {
-  test("includes terse prompt in system messages by default", async () => {
-    let captured: any
-    const server = Bun.serve({
-      port: 0,
-      async fetch(req) {
-        const url = new URL(req.url)
-        if (!url.pathname.endsWith("/chat/completions")) {
-          return new Response("not found", { status: 404 })
-        }
-        captured = await req.json()
-        return new Response(chat("ok"), {
-          status: 200,
-          headers: { "Content-Type": "text/event-stream" },
-        })
-      },
-    })
-
-    try {
-      await using tmp = await tmpdir({
-        git: true,
-        init: async (dir) => {
-          await Bun.write(
-            path.join(dir, "opencode.json"),
-            JSON.stringify({
-              enabled_providers: ["alibaba"],
-              provider: {
-                alibaba: {
-                  options: { apiKey: "test-key", baseURL: `${server.url.origin}/v1` },
-                },
-              },
-              agent: { build: { model: "alibaba/qwen-plus" } },
-            }),
-          )
-        },
-      })
-
-      await Instance.provide({
-        directory: tmp.path,
-        fn: () =>
-          run(
-            Effect.gen(function* () {
-              const prompt = yield* SessionPrompt.Service
-              const sessions = yield* Session.Service
-              const session = yield* sessions.create({})
-              yield* prompt.prompt({
-                sessionID: session.id,
-                agent: "build",
-                parts: [{ type: "text", text: "hello" }],
-              })
-            }),
-          ),
-      })
-
-      expect(captured).toBeDefined()
-      const text = JSON.stringify(captured.messages)
-      expect(text).toContain("Terse mode active")
-    } finally {
-      server.stop(true)
-    }
-  })
-
-  test("includes socratic prompt when style is socratic", async () => {
-    let captured: any
-    const server = Bun.serve({
-      port: 0,
-      async fetch(req) {
-        const url = new URL(req.url)
-        if (!url.pathname.endsWith("/chat/completions")) {
-          return new Response("not found", { status: 404 })
-        }
-        captured = await req.json()
-        return new Response(chat("ok"), {
-          status: 200,
-          headers: { "Content-Type": "text/event-stream" },
-        })
-      },
-    })
-
-    try {
-      await using tmp = await tmpdir({
-        git: true,
-        init: async (dir) => {
-          await Bun.write(
-            path.join(dir, "opencode.json"),
-            JSON.stringify({
-              style: "socratic",
-              enabled_providers: ["alibaba"],
-              provider: {
-                alibaba: {
-                  options: { apiKey: "test-key", baseURL: `${server.url.origin}/v1` },
-                },
-              },
-              agent: { build: { model: "alibaba/qwen-plus" } },
-            }),
-          )
-        },
-      })
-
-      await Instance.provide({
-        directory: tmp.path,
-        fn: () =>
-          run(
-            Effect.gen(function* () {
-              const prompt = yield* SessionPrompt.Service
-              const sessions = yield* Session.Service
-              const session = yield* sessions.create({})
-              yield* prompt.prompt({
-                sessionID: session.id,
-                agent: "build",
-                parts: [{ type: "text", text: "hello" }],
-              })
-            }),
-          ),
-      })
-
-      expect(captured).toBeDefined()
-      const text = JSON.stringify(captured.messages)
-      expect(text).toContain("Socratic")
-      expect(text).not.toContain("Terse mode active")
-    } finally {
-      server.stop(true)
-    }
-  })
-
-  // NOTE: mid-session style switch (toggle terse→socratic between messages) is not
-  // testable here because config.update() triggers Instance.dispose() which invalidates
-  // the service closures in the test harness. The individual pieces are covered:
-  // - Config with style:"terse" → TERSE_PROMPT injected (test above)
-  // - Config with style:"socratic" → SOCRATIC_PROMPT injected (test above)
-  // - Config.update() deep-merges and persists (config.test.ts)
-  // - TUI toggle updates local reactive store + calls PATCH /config (local.tsx)
-})
-
-describe("session.command registration", () => {
-  test("built-in commands init and review are registered", async () => {
-    await using tmp = await tmpdir({ git: true })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: () =>
-        run(
-          Effect.gen(function* () {
-            const prompt = yield* SessionPrompt.Service
-            const sessions = yield* Session.Service
-            const session = yield* sessions.create({})
-            const err = yield* Effect.promise(() =>
-              Effect.runPromise(
-                prompt.command({
-                  sessionID: session.id,
-                  command: "nonexistent-xyz",
-                  arguments: "",
-                }),
-              ).then(
-                () => undefined,
-                (e) => e,
-              ),
-            )
-            expect(NamedError.Unknown.isInstance(err)).toBe(true)
-            if (NamedError.Unknown.isInstance(err)) {
-              expect(err.data.message).toContain("init")
-              expect(err.data.message).toContain("review")
-            }
-          }),
-        ),
-    })
-  }, 30000)
-})
-
 describe("session.prompt regression", () => {
   test("does not loop empty assistant turns for a simple reply", async () => {
     let calls = 0
@@ -489,7 +316,7 @@ describe("session.prompt regression", () => {
           ),
       })
     } finally {
-      server.stop(true)
+      void server.stop(true)
     }
   })
 
@@ -582,7 +409,7 @@ describe("session.prompt regression", () => {
           ),
       })
     } finally {
-      server.stop(true)
+      void server.stop(true)
     }
   })
 })

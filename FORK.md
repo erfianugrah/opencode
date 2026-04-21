@@ -92,19 +92,62 @@ The `modalities` config is required for vision support with custom providers:
         "baseURL": "http://localhost:11434/v1"
       },
       "models": {
-        "gemma-4-31B-it-Q4_K_M": {
-          "name": "Gemma 4 31B Dense (local)",
+        "Qwen3.5-27B-Q4_K_M": {
+          "name": "Qwen 3.5 27B Dense (local)",
           "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
           "modalities": {
             "input": ["text", "image"],
             "output": ["text"]
-          }
+          },
+          "limit": { "context": 65536, "output": 32768 }
+        },
+        "Qwen3.5-35B-A3B-Q4_K_S": {
+          "name": "Qwen 3.5 35B MoE (local)",
+          "reasoning": true,
+          "tool_call": true,
+          "limit": { "context": 65536, "output": 32768 }
+        },
+        "gemma-4-31B-it-Q4_K_M": {
+          "name": "Gemma 4 31B Dense (local)",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          },
+          "limit": { "context": 65536, "output": 32768 }
+        },
+        "qwen3-coder-30b-a3b-instruct-q4_k_m": {
+          "name": "Qwen3 Coder 30B MoE (local)",
+          "tool_call": true,
+          "limit": { "context": 65536, "output": 32768 }
+        },
+        "Qwen3-32B-Q4_K_M": {
+          "name": "Qwen3 32B (local)",
+          "reasoning": true,
+          "tool_call": true,
+          "limit": { "context": 65536, "output": 32768 }
         }
       }
     }
   }
 }
 ```
+
+The model key is the GGUF filename without `.gguf` — this must match the
+`MODEL_FILE` in the corresponding [llm-compose](https://github.com/erfianugrah/llm-compose)
+preset. The proxy auto-swaps models when you select a different one in `/models`.
+
+| Model key | Preset | Vision | Thinking | Notes |
+|---|---|---|---|---|
+| `Qwen3.5-27B-Q4_K_M` | `qwen35` | Yes | Yes | Best general-purpose local model |
+| `Qwen3.5-35B-A3B-Q4_K_S` | `qwen35-moe` | No | Yes | Fast MoE, text-only |
+| `gemma-4-31B-it-Q4_K_M` | `gemma4` | Yes | Yes | Google multimodal |
+| `qwen3-coder-30b-a3b-instruct-q4_k_m` | `qwen3-coder` | No | No | Fast coding MoE |
+| `Qwen3-32B-Q4_K_M` | `qwen3` | No | Yes | Dense reasoning |
 
 ## Channel database isolation
 
