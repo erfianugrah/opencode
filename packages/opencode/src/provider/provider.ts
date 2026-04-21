@@ -1142,7 +1142,7 @@ const layer: Layer.Layer<
             name: m.name,
             providerID: ProviderID.make("llama-server"),
             capabilities: {
-              temperature: false,
+              temperature: true,
               reasoning: m.reasoning,
               attachment: m.vision,
               toolcall: true,
@@ -1671,6 +1671,12 @@ const layer: Layer.Layer<
       }
       if (providerID.startsWith("github-copilot")) {
         priority = ["gpt-5-mini", "claude-haiku-4.5", ...priority]
+      }
+      // Fork: single-GPU local inference — never pick a different model for
+      // tasks, because model swapping takes ~90s. Let it fall through to
+      // undefined → uses the already-loaded main model.
+      if (providerID === "llama-server") {
+        priority = []
       }
       for (const item of priority) {
         if (providerID === ProviderID.amazonBedrock) {

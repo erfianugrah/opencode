@@ -354,6 +354,7 @@ export function temperature(model: Provider.Model) {
   if (id.includes("qwen")) return 0.55
   if (id.includes("claude")) return undefined
   if (id.includes("gemini")) return 1.0
+  if (id.includes("gemma")) return 1.0
   if (id.includes("glm-4.6")) return 1.0
   if (id.includes("glm-4.7")) return 1.0
   if (id.includes("minimax-m2")) return 1.0
@@ -956,6 +957,12 @@ export function smallOptions(model: Provider.Model) {
 
   if (model.providerID === "venice") {
     return { veniceParameters: { disableThinking: true } }
+  }
+
+  // Fork: local models via llama-server — suppress thinking for lightweight
+  // tasks (title gen, etc.) to avoid wasting time on <think> blocks
+  if (model.providerID === "llama-server") {
+    return { reasoning_effort: "low" }
   }
 
   return {}
