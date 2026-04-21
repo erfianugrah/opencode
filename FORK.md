@@ -199,6 +199,29 @@ tool discipline rules and anti-loop guardrails for local model quirks.
 - Code: `packages/opencode/src/session/system.ts`
 - Prompt: `packages/opencode/src/session/prompt/gemma.txt`
 
+### Local model fixes (`provider.ts`, `transform.ts`, `message-v2.ts`)
+
+Several fixes for local models running via the llama-server provider:
+
+- **Temperature capability**: set to `true` (was `false`, silently broke
+  title generation and other background tasks)
+- **`getSmallModel` bypass**: `priority = []` for llama-server — prevents
+  catastrophic ~90s model swaps when generating titles on single-GPU setups.
+  Always uses the currently loaded model for background tasks.
+- **Gemma temperature**: added `gemma` match in `temperature()` returning
+  `1.0` (was `undefined`, using unpredictable server defaults)
+- **Reasoning suppression**: `smallOptions()` sends `reasoning_effort: "low"`
+  for llama-server during title generation to avoid wasting time on `<think>`
+  blocks for trivial tasks
+- **Image stripping**: `toModelMessagesEffect()` strips image parts from
+  conversation history when switching to a non-vision model — prevents
+  `CallExpression` crash in `convertToModelMessages()`
+
+Code:
+- `packages/opencode/src/provider/provider.ts` (baked-in models, getSmallModel)
+- `packages/opencode/src/provider/transform.ts` (temperature, smallOptions)
+- `packages/opencode/src/session/message-v2.ts` (image stripping)
+
 ### Container image version lookup
 
 `script/oci-tags` queries OCI registries directly (Docker Hub, ghcr.io, quay.io)
@@ -212,5 +235,5 @@ no stale results, minimal tokens.
 ## Branch strategy
 
 - `dev` = upstream `dev` + fork modifications
-- Fork changes: style toggle, LaTeX sanitization, gemma/qwen routing, oci-tags
-- Upstream merges may need conflict resolution in `config.ts`, `prompt.ts`, `processor.ts`, `system.ts`
+- Fork changes: baked-in local models, style toggle, LaTeX sanitization, gemma/qwen routing, local model fixes, image stripping, oci-tags
+- Upstream merges may need conflict resolution in `config.ts`, `prompt.ts`, `processor.ts`, `system.ts`, `provider.ts`, `transform.ts`, `message-v2.ts`
