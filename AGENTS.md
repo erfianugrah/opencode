@@ -4,6 +4,26 @@
 - Local `main` ref may not exist; use `dev` or `origin/dev` for diffs.
 - Prefer automation: execute requested actions without confirmation unless blocked by missing info or safety/irreversibility.
 
+## Container Image Versions
+
+**Do NOT web-search for container image versions.** Use `./script/oci-tags` — it queries OCI registries directly (Docker Hub, ghcr.io, quay.io, any OCI-compliant registry).
+
+```bash
+# Latest 5 semver tags
+./script/oci-tags -s -n 5 vaultwarden/server
+
+# Any registry
+./script/oci-tags -s -n 5 ghcr.io/astral-sh/uv
+
+# Official images (bare name)
+./script/oci-tags -s -n 5 nginx
+
+# All tags
+./script/oci-tags -a vaultwarden/server
+```
+
+Flags: `-s` semver only, `-n NUM` limit (default 10), `-a` all tags. Requires `jq`.
+
 ## Style Guide
 
 ### General Principles

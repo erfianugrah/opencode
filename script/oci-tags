@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+count=10
+all=false
+semver=false
+
+usage() {
+  cat <<'EOF'
+Usage: oci-tags [OPTIONS] IMAGE
+
+List tags for an OCI container image from any registry.
+
+  oci-tags vaultwarden/server
+  oci-tags ghcr.io/astral-sh/uv
+  oci-tags nginx
+  oci-tags -s -n 5 vaultwarden/server
+
+Options:
+  -n NUM  Show last NUM tags (default: 10)
+  -a      Show all tags
+  -s      Semver-like tags only
+  -h      Help
+
+Supported registries: Docker Hub, ghcr.io, quay.io, and any
+OCI-compliant registry. Public repos use anonymous auth.
+Private repos prompt for credentials interactively.
+
+Requires: curl, jq, grep -P (GNU grep with PCRE)
+EOF
+  exit 0
+}
+
+while getopts "n:ash" opt; do
+  case $opt in
+    n) count="$OPTARG" ;;
+    a) all=true ;;
+    s) semver=true ;;
+    h) usage ;;
+    *) usage ;;
+  esac
+done
+shift $((OPTIND - 1))
+[[ $# -lt 1 ]] && usage
+
+command -v jq &>/dev/null || { echo "error: jq required" >&2; exit 1; }
+
+# Strip digest (nginx@sha256:abc -> nginx)
+image="${1%%@*}"
+
+# Parse image -> registry + repo
+# ghcr.io/foo/bar -> registry=ghcr.io repo=foo/bar
+# vaultwarden/server -> registry=registry-1.docker.io repo=vaultwarden/server
+# nginx -> registry=registry-1.docker.io repo=library/nginx
+# localhost:5000/img -> registry=localhost:5000 repo=img
+first="${image%%/*}"
+if [[ "$image" != *"/"* ]]; then
+  registry="registry-1.docker.io"
+  repo="library/$image"
+elif [[ "$first" == *.* || "$first" == *:* ]]; then
+  registry="$first"
+  repo="${image#*/}"
+else
+  registry="registry-1.docker.io"
+  repo="$image"
+fi
+[[ "$registry" == "docker.io" ]] && registry="registry-1.docker.io"
+
+# Strip tag from repo (nginx:latest -> nginx)
+repo="${repo%%:*}"
+
+hdr=$(mktemp)
+trap 'rm -f "$hdr"' EXIT
+
+url="https://$registry/v2/$repo/tags/list"
+auth=()
+
+# Probe endpoint — keep body for 200 case to avoid double fetch
+body=$(curl -s -D "$hdr" "$url" 2>/dev/null || true)
+code=$(head -1 "$hdr" 2>/dev/null | grep -oP '\d{3}' | head -1 || true)
+
+if [[ "$code" == "401" ]]; then
+  # Extract auth challenge from response
+  realm=$(grep -ioP 'realm="\K[^"]+' "$hdr" 2>/dev/null | head -1 || true)
+  service=$(grep -ioP 'service="\K[^"]+' "$hdr" 2>/dev/null | head -1 || true)
+  [[ -z "$realm" ]] && { echo "error: cannot discover auth for $registry" >&2; exit 1; }
+
+  # Anonymous token
+  resp=$(curl -sf "${realm}?service=${service}&scope=repository:${repo}:pull" 2>/dev/null || true)
+  token=$(echo "$resp" | jq -r '.token // .access_token // empty' 2>/dev/null || true)
+
+  # Interactive fallback for private repos
+  if [[ -z "$token" ]]; then
+    [[ -c /dev/tty ]] || { echo "error: auth required for $registry/$repo (no TTY)" >&2; exit 1; }
+    echo "Auth required for $registry/$repo" >&2
+    read -rp "Username: " user </dev/tty
+    read -rsp "Password: " pass </dev/tty
+    echo >&2
+    resp=$(curl -sf -u "${user}:${pass}" "${realm}?service=${service}&scope=repository:${repo}:pull" 2>/dev/null || true)
+    token=$(echo "$resp" | jq -r '.token // .access_token // empty' 2>/dev/null || true)
+    [[ -z "$token" ]] && { echo "error: authentication failed" >&2; exit 1; }
+  fi
+
+  auth=(-H "Authorization: Bearer $token")
+  body=$(curl -sf -D "$hdr" "${auth[@]}" "$url" 2>/dev/null) || {
+    echo "error: failed to fetch tags for $1" >&2; exit 1
+  }
+elif [[ "$code" != "200" ]]; then
+  echo "error: HTTP ${code:-000} for $1" >&2
+  exit 1
+fi
+
+# Parse first page
+tags=$(echo "$body" | jq -r '.tags[]?' 2>/dev/null)
+
+# Follow pagination (Link: </v2/.../tags/list?n=100&last=...>; rel="next")
+while link=$(grep -ioP 'link:\s*<\K[^>]+' "$hdr" 2>/dev/null | head -1) && [[ -n "$link" ]]; do
+  [[ "$link" != http* ]] && link="https://$registry$link"
+  body=$(curl -sf -D "$hdr" "${auth[@]}" "$link" 2>/dev/null) || break
+  tags+=$'\n'$(echo "$body" | jq -r '.tags[]?' 2>/dev/null)
+done
+
+tags=$(echo "$tags" | sed '/^$/d')
+[[ -z "$tags" ]] && { echo "no tags found for $1" >&2; exit 1; }
+
+# Filter to semver-like tags (optional v prefix + major.minor)
+$semver && tags=$(echo "$tags" | grep -P '^v?\d+\.\d+' || true)
+
+# Version sort, limit output
+tags=$(echo "$tags" | sort -V)
+$all || tags=$(echo "$tags" | tail -n "$count")
+
+echo "$tags"
