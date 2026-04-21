@@ -657,10 +657,23 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
           })
         // text/plain and directory files are converted into text parts, ignore them
         if (part.type === "file" && part.mime !== "text/plain" && part.mime !== "application/x-directory") {
+          const modality = part.mime.startsWith("image/") ? "image" as const
+            : part.mime.startsWith("audio/") ? "audio" as const
+            : part.mime.startsWith("video/") ? "video" as const
+            : part.mime === "application/pdf" ? "pdf" as const
+            : undefined
+          const modelSupports = modality ? model.capabilities.input[modality] : true
           if (options?.stripMedia && isMedia(part.mime)) {
             userMessage.parts.push({
               type: "text",
               text: `[Attached ${part.mime}: ${part.filename ?? "file"}]`,
+            })
+          } else if (modality && !modelSupports) {
+            // Strip unsupported media early — before convertToModelMessages()
+            // which crashes if it encounters image parts for non-vision models
+            userMessage.parts.push({
+              type: "text",
+              text: `[${part.filename ?? modality} removed — this model does not support ${modality} input]`,
             })
           } else {
             userMessage.parts.push({
