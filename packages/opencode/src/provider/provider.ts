@@ -1128,9 +1128,9 @@ const layer: Layer.Layer<
           context: number
           output: number
         }> = [
-          { id: "Qwen3.5-27B-Q4_K_M", name: "Qwen 3.5 27B Dense (local)", vision: true, reasoning: true, context: 65536, output: 32768 },
+          { id: "Qwen3.5-27B-Q4_K_M", name: "Qwen 3.5 27B Dense [vision] (local)", vision: true, reasoning: true, context: 65536, output: 32768 },
           { id: "Qwen3.5-35B-A3B-Q4_K_S", name: "Qwen 3.5 35B MoE (local)", vision: false, reasoning: true, context: 65536, output: 32768 },
-          { id: "gemma-4-31B-it-Q4_K_M", name: "Gemma 4 31B Dense (local)", vision: true, reasoning: true, context: 65536, output: 32768 },
+          { id: "gemma-4-31B-it-Q4_K_M", name: "Gemma 4 31B Dense [vision] (local)", vision: true, reasoning: true, context: 65536, output: 32768 },
           { id: "qwen3-coder-30b-a3b-instruct-q4_k_m", name: "Qwen3 Coder 30B MoE (local)", vision: false, reasoning: false, context: 65536, output: 32768 },
           { id: "Qwen3-32B-Q4_K_M", name: "Qwen3 32B (local)", vision: false, reasoning: true, context: 65536, output: 32768 },
         ]
