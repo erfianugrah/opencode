@@ -21,6 +21,23 @@ import { errorMessage } from "@/util/error"
 import { Log } from "@/util"
 import { isRecord } from "@/util/record"
 
+// Sanitize LaTeX math notation that local models (Gemma, Qwen) emit in terminal
+function sanitizeLatex(text: string) {
+  return text
+    .replace(/\$\\rightarrow\$/g, "→")
+    .replace(/\$\\leftarrow\$/g, "←")
+    .replace(/\$\\Rightarrow\$/g, "⇒")
+    .replace(/\$\\Leftarrow\$/g, "⇐")
+    .replace(/\$\\leftrightarrow\$/g, "↔")
+    .replace(/\$\\times\$/g, "×")
+    .replace(/\$\\neq\$/g, "≠")
+    .replace(/\$\\leq\$/g, "≤")
+    .replace(/\$\\geq\$/g, "≥")
+    .replace(/\$\\approx\$/g, "≈")
+    .replace(/\$\\infty\$/g, "∞")
+    .replace(/\$\\pm\$/g, "±")
+}
+
 const DOOM_LOOP_THRESHOLD = 3
 const log = Log.create({ service: "session.processor" })
 
@@ -248,8 +265,7 @@ export const layer: Layer.Layer<
 
           case "reasoning-end":
             if (!(value.id in ctx.reasoningMap)) return
-            // oxlint-disable-next-line no-self-assign -- reactivity trigger
-            ctx.reasoningMap[value.id].text = ctx.reasoningMap[value.id].text
+            ctx.reasoningMap[value.id].text = sanitizeLatex(ctx.reasoningMap[value.id].text)
             ctx.reasoningMap[value.id].time = { ...ctx.reasoningMap[value.id].time, end: Date.now() }
             if (value.providerMetadata) ctx.reasoningMap[value.id].metadata = value.providerMetadata
             yield* session.updatePart(ctx.reasoningMap[value.id])
@@ -431,8 +447,7 @@ export const layer: Layer.Layer<
 
           case "text-end":
             if (!ctx.currentText) return
-            // oxlint-disable-next-line no-self-assign -- reactivity trigger
-            ctx.currentText.text = ctx.currentText.text
+            ctx.currentText.text = sanitizeLatex(ctx.currentText.text)
             ctx.currentText.text = (yield* plugin.trigger(
               "experimental.text.complete",
               {

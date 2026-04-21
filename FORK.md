@@ -141,13 +141,13 @@ The model key is the GGUF filename without `.gguf` — this must match the
 `MODEL_FILE` in the corresponding [llm-compose](https://github.com/erfianugrah/llm-compose)
 preset. The proxy auto-swaps models when you select a different one in `/models`.
 
-| Model key | Preset | Vision | Thinking | Notes |
-|---|---|---|---|---|
-| `Qwen3.5-27B-Q4_K_M` | `qwen35` | Yes | Yes | Best general-purpose local model |
-| `Qwen3.5-35B-A3B-Q4_K_S` | `qwen35-moe` | No | Yes | Fast MoE, text-only |
-| `gemma-4-31B-it-Q4_K_M` | `gemma4` | Yes | Yes | Google multimodal |
-| `qwen3-coder-30b-a3b-instruct-q4_k_m` | `qwen3-coder` | No | No | Fast coding MoE |
-| `Qwen3-32B-Q4_K_M` | `qwen3` | No | Yes | Dense reasoning |
+| Model key                             | Preset        | Vision | Thinking | Notes                            |
+| ------------------------------------- | ------------- | ------ | -------- | -------------------------------- |
+| `Qwen3.5-27B-Q4_K_M`                  | `qwen35`      | Yes    | Yes      | Best general-purpose local model |
+| `Qwen3.5-35B-A3B-Q4_K_S`              | `qwen35-moe`  | No     | Yes      | Fast MoE, text-only              |
+| `gemma-4-31B-it-Q4_K_M`               | `gemma4`      | Yes    | Yes      | Google multimodal                |
+| `qwen3-coder-30b-a3b-instruct-q4_k_m` | `qwen3-coder` | No     | No       | Fast coding MoE                  |
+| `Qwen3-32B-Q4_K_M`                    | `qwen3`       | No     | Yes      | Dense reasoning                  |
 
 ## Channel database isolation
 
@@ -204,9 +204,11 @@ in the official CLI docs (`packages/web/src/content/docs/cli.mdx`):
 | `OPENCODE_DISABLE_CHANNEL_DB` | boolean | Ignore channel, always use `opencode.db`                         |
 | `OPENCODE_SKIP_MIGRATIONS`    | boolean | Replace all migration SQL with `select 1`                        |
 
-## Output style (fork feature)
+## Fork features
 
-This fork adds a `style` config option that controls output verbosity:
+### Output style toggle
+
+Adds a `style` config option that controls output verbosity:
 
 ```jsonc
 // opencode.json
@@ -215,13 +217,39 @@ This fork adds a `style` config option that controls output verbosity:
 ```
 
 - Orthogonal to build/plan modes (all 4 combinations work)
-- Toggle in-session: `/style terse`, `/style socratic`, or `/style` to toggle
-- System prompts compressed ~50% to reduce input tokens every message
+- Toggle in-session via command palette: `/style` to toggle, or pick from the menu
 - Config schema: `packages/opencode/src/config/config.ts` (field: `style`)
 - Prompt constants: `TERSE_PROMPT` / `SOCRATIC_PROMPT` in `packages/opencode/src/session/prompt.ts`
+- UI toggle: `packages/opencode/src/cli/cmd/tui/app.tsx` (command palette action)
+
+### LaTeX sanitization
+
+Local models (Gemma 4, Qwen) emit LaTeX notation (`$\rightarrow$`, `$\neq$`, etc.)
+that doesn't render in terminal. The stream processor replaces these with Unicode
+equivalents (→, ≠, ≤, ≥, etc.) at `text-end` and `reasoning-end` events.
+
+- Code: `packages/opencode/src/session/processor.ts` (`sanitizeLatex` function)
+
+### Gemma/Qwen model routing
+
+Routes Gemma and Qwen models to a dedicated system prompt (`gemma.txt`) with
+tool discipline rules and anti-loop guardrails for local model quirks.
+
+- Code: `packages/opencode/src/session/system.ts`
+- Prompt: `packages/opencode/src/session/prompt/gemma.txt`
+
+### Container image version lookup
+
+`script/oci-tags` queries OCI registries directly (Docker Hub, ghcr.io, quay.io)
+for container image tags. Agents use this instead of web search — deterministic,
+no stale results, minimal tokens.
+
+```bash
+./script/oci-tags -s -n 5 vaultwarden/server
+```
 
 ## Branch strategy
 
 - `dev` = upstream `dev` + fork modifications
-- Fork changes: compressed system prompts, style toggle, /style command, removed dead prompt files
-- Upstream merges may need conflict resolution in modified `.txt` prompt files
+- Fork changes: style toggle, LaTeX sanitization, gemma/qwen routing, oci-tags
+- Upstream merges may need conflict resolution in `config.ts`, `prompt.ts`, `processor.ts`, `system.ts`
