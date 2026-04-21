@@ -1108,6 +1108,60 @@ const layer: Layer.Layer<
           providers[providerID] = mergeDeep(match, provider)
         }
 
+        // ── Fork: baked-in local llama.cpp provider ─────────────────────
+        // These models are served by llm-compose (model-switching proxy
+        // in front of llama-server). Baked into the binary so no user
+        // config is needed. The proxy auto-swaps models on request.
+        const llamaProvider: Info = {
+          id: ProviderID.make("llama-server"),
+          name: "llama.cpp (local)",
+          env: [],
+          options: { baseURL: "http://localhost:11434/v1" },
+          source: "config",
+          models: {},
+        }
+        const llamaModels: Array<{
+          id: string
+          name: string
+          vision: boolean
+          reasoning: boolean
+          context: number
+          output: number
+        }> = [
+          { id: "Qwen3.5-27B-Q4_K_M", name: "Qwen 3.5 27B Dense (local)", vision: true, reasoning: true, context: 65536, output: 32768 },
+          { id: "Qwen3.5-35B-A3B-Q4_K_S", name: "Qwen 3.5 35B MoE (local)", vision: false, reasoning: true, context: 65536, output: 32768 },
+          { id: "gemma-4-31B-it-Q4_K_M", name: "Gemma 4 31B Dense (local)", vision: true, reasoning: true, context: 65536, output: 32768 },
+          { id: "qwen3-coder-30b-a3b-instruct-q4_k_m", name: "Qwen3 Coder 30B MoE (local)", vision: false, reasoning: false, context: 65536, output: 32768 },
+          { id: "Qwen3-32B-Q4_K_M", name: "Qwen3 32B (local)", vision: false, reasoning: true, context: 65536, output: 32768 },
+        ]
+        for (const m of llamaModels) {
+          llamaProvider.models[m.id] = {
+            id: ModelID.make(m.id),
+            api: { id: m.id, npm: "@ai-sdk/openai-compatible", url: "" },
+            status: "active",
+            name: m.name,
+            providerID: ProviderID.make("llama-server"),
+            capabilities: {
+              temperature: false,
+              reasoning: m.reasoning,
+              attachment: m.vision,
+              toolcall: true,
+              input: { text: true, audio: false, image: m.vision, video: false, pdf: false },
+              output: { text: true, audio: false, image: false, video: false, pdf: false },
+              interleaved: false,
+            },
+            cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+            options: {},
+            limit: { context: m.context, output: m.output },
+            headers: {},
+            family: "",
+            release_date: "",
+            variants: {},
+          }
+        }
+        database["llama-server"] = llamaProvider
+        // ── End fork: baked-in local provider ─────────────────────────
+
         // load plugins first so config() hook runs before reading cfg.provider
         const plugins = yield* plugin.list()
 
