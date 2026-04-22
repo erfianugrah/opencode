@@ -31,6 +31,7 @@ import * as Stream from "effect/Stream"
 import { Command } from "../command"
 import { pathToFileURL, fileURLToPath } from "url"
 import { Config, ConfigMarkdown } from "../config"
+import { Memory } from "../memory"
 import { SessionSummary } from "./summary"
 import { NamedError } from "@opencode-ai/shared/util/error"
 import { SessionProcessor } from "./processor"
@@ -83,6 +84,21 @@ Guide user to discover answers through questions and structured reasoning.
 Code changes: still implement when asked, but explain reasoning and tradeoffs.
 Switch to terse mode: set style="terse" in opencode config.`
 
+const MEMORY_SEED_PROMPT = `# Memory System
+Your persistent memory is empty. This is your first session with memory enabled.
+Review the user's AGENTS.md instructions and any preferences visible in this conversation.
+Save key design principles, coding preferences, and patterns as memories using the memory tool.
+This bootstraps your memory so future sessions start with context.`
+
+const MEMORY_MANAGEMENT_PROMPT = `# Memory Management
+You have persistent memory across sessions. After completing tasks:
+1. Consider whether any user preferences or recurring patterns should be saved
+2. Before saving, list existing memories to check for duplicates
+3. If a concept is already covered, update it rather than creating a duplicate
+4. Keep memories concise (1-2 sentences), actionable, and specific
+5. Delete outdated or superseded memories
+6. Consolidate related memories when the count gets high`
+
 const log = Log.create({ service: "session.prompt" })
 const elog = EffectLogger.create({ service: "session.prompt" })
 
@@ -124,6 +140,7 @@ export const layer = Layer.effect(
     const sys = yield* SystemPrompt.Service
     const llm = yield* LLM.Service
     const cfg = yield* Config.Service
+    const mem = yield* Memory.Service
     const runner = Effect.fn("SessionPrompt.runner")(function* () {
       return yield* EffectBridge.make()
     })
@@ -1500,6 +1517,30 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             const system = [...env, ...(skills ? [skills] : []), ...instructions]
             const mode = lastUser.system ?? (yield* cfg.get()).style
             system.push(mode === "socratic" ? SOCRATIC_PROMPT : TERSE_PROMPT)
+            const config = yield* cfg.get()
+            if (config.memory !== false) {
+              const memories = yield* mem.list()
+              if (memories.length === 0) {
+                system.push(MEMORY_SEED_PROMPT)
+              } else {
+                const lines = memories.map((m) => `- ${m.content}`)
+                const block = lines.join("\n")
+                if (block.length > 8000) {
+                  const truncated = memories.slice(0, 30)
+                  const rest = memories.length - 30
+                  system.push(
+                    [
+                      "# Memories (from past sessions)",
+                      ...truncated.map((m) => `- ${m.content}`),
+                      `(${rest} more memories stored — use memory tool with action "list" to see all)`,
+                    ].join("\n"),
+                  )
+                } else {
+                  system.push("# Memories (from past sessions)\n" + block)
+                }
+                system.push(MEMORY_MANAGEMENT_PROMPT)
+              }
+            }
             const format = lastUser.format ?? { type: "text" as const }
             if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
             const result = yield* handle.process({
@@ -1711,6 +1752,7 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(AppFileSystem.defaultLayer),
     Layer.provide(Plugin.defaultLayer),
     Layer.provide(Config.defaultLayer),
+    Layer.provide(Memory.defaultLayer),
     Layer.provide(Session.defaultLayer),
     Layer.provide(SessionRevert.defaultLayer),
     Layer.provide(SessionSummary.defaultLayer),

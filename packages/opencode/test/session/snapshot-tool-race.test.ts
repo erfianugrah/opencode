@@ -40,6 +40,7 @@ import { Plugin } from "../../src/plugin"
 import { Provider as ProviderSvc } from "../../src/provider"
 import { Env } from "../../src/env"
 import { Question } from "../../src/question"
+import { Memory } from "../../src/memory"
 import { Skill } from "../../src/skill"
 import { SystemPrompt } from "../../src/session/system"
 import { Todo } from "../../src/session/todo"
@@ -124,12 +125,14 @@ function makeHttp() {
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
+  const memory = Memory.layer
   const registry = ToolRegistry.layer.pipe(
     Layer.provide(Skill.defaultLayer),
     Layer.provide(FetchHttpClient.layer),
     Layer.provide(CrossSpawnSpawner.defaultLayer),
     Layer.provide(Ripgrep.defaultLayer),
     Layer.provide(Format.defaultLayer),
+    Layer.provideMerge(memory),
     Layer.provideMerge(todo),
     Layer.provideMerge(question),
     Layer.provideMerge(deps),

@@ -26,6 +26,8 @@ import { Log } from "@/util"
 import { LspTool } from "./lsp"
 import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
+import { MemoryTool } from "./memory"
+import { Memory } from "../memory"
 import { Glob } from "@opencode-ai/shared/util/glob"
 import path from "path"
 import { pathToFileURL } from "url"
@@ -74,6 +76,7 @@ export const layer: Layer.Layer<
   | Plugin.Service
   | Question.Service
   | Todo.Service
+  | Memory.Service
   | Agent.Service
   | Skill.Service
   | Session.Service
@@ -113,6 +116,7 @@ export const layer: Layer.Layer<
     const greptool = yield* GrepTool
     const patchtool = yield* ApplyPatchTool
     const skilltool = yield* SkillTool
+    const memorytool = yield* MemoryTool
     const agent = yield* Agent.Service
 
     const state = yield* InstanceState.make<State>(
@@ -172,9 +176,10 @@ export const layer: Layer.Layer<
           }
         }
 
-        yield* config.get()
+        const cfg = yield* config.get()
         const questionEnabled =
           ["app", "cli", "desktop"].includes(Flag.OPENCODE_CLIENT) || Flag.OPENCODE_ENABLE_QUESTION_TOOL
+        const memoryEnabled = cfg.memory !== false
 
         const tool = yield* Effect.all({
           invalid: Tool.init(invalid),
@@ -194,6 +199,7 @@ export const layer: Layer.Layer<
           question: Tool.init(question),
           lsp: Tool.init(lsptool),
           plan: Tool.init(plan),
+          memory: Tool.init(memorytool),
         })
 
         return {
@@ -214,6 +220,7 @@ export const layer: Layer.Layer<
             tool.code,
             tool.skill,
             tool.patch,
+            ...(memoryEnabled ? [tool.memory] : []),
             ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [tool.lsp] : []),
             ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [tool.plan] : []),
           ],
@@ -277,6 +284,8 @@ export const layer: Layer.Layer<
         if (tool.id === ApplyPatchTool.id) return usePatch
         if (tool.id === EditTool.id || tool.id === WriteTool.id) return !usePatch
 
+        if (tool.id === MemoryTool.id) return input.agent.mode === "primary"
+
         return true
       })
 
@@ -322,6 +331,7 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Plugin.defaultLayer),
     Layer.provide(Question.defaultLayer),
     Layer.provide(Todo.defaultLayer),
+    Layer.provide(Memory.defaultLayer),
     Layer.provide(Skill.defaultLayer),
     Layer.provide(Agent.defaultLayer),
     Layer.provide(Session.defaultLayer),

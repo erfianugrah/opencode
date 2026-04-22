@@ -1,0 +1,17 @@
+Manage persistent memories that survive across sessions.
+
+Use this tool to save user preferences, design principles, project conventions, and recurring patterns so they are available in future sessions.
+
+Actions:
+- "save": Save a new memory. Requires content.
+- "list": List all stored memories with their IDs.
+- "update": Update an existing memory. Requires id and content.
+- "delete": Delete an outdated memory. Requires id.
+
+Guidelines:
+- Before saving, list existing memories to check for duplicates
+- Keep each memory concise: 1-2 sentences, actionable, specific
+- If a memory already covers the same concept, update it instead of creating a new one
+- Delete memories that are outdated or superseded
+- Prefer 30 precise memories over 100 vague ones
+- Consolidate related memories when the count gets high

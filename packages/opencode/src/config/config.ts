@@ -129,6 +129,9 @@ export const Info = Schema.Struct({
   style: Schema.optional(Schema.Literals(["terse", "socratic"])).annotate({
     description: "Output style: 'terse' for minimal tokens, 'socratic' for guided learning with probing questions",
   }),
+  memory: Schema.optional(Schema.Boolean).annotate({
+    description: "Enable persistent memory across sessions (default: true)",
+  }),
   autoshare: Schema.optional(Schema.Boolean).annotate({
     description: "@deprecated Use 'share' field instead. Share newly created sessions automatically",
   }),
