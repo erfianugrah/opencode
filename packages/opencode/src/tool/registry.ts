@@ -27,6 +27,7 @@ import { LspTool } from "./lsp"
 import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
 import { MemoryTool } from "./memory"
+import { SessionSearchTool } from "./session-search"
 import { Memory } from "../memory"
 import { Glob } from "@opencode-ai/shared/util/glob"
 import path from "path"
@@ -117,6 +118,7 @@ export const layer: Layer.Layer<
     const patchtool = yield* ApplyPatchTool
     const skilltool = yield* SkillTool
     const memorytool = yield* MemoryTool
+    const sessionsearch = yield* SessionSearchTool
     const agent = yield* Agent.Service
 
     const state = yield* InstanceState.make<State>(
@@ -200,6 +202,7 @@ export const layer: Layer.Layer<
           lsp: Tool.init(lsptool),
           plan: Tool.init(plan),
           memory: Tool.init(memorytool),
+          sessionsearch: Tool.init(sessionsearch),
         })
 
         return {
@@ -220,7 +223,7 @@ export const layer: Layer.Layer<
             tool.code,
             tool.skill,
             tool.patch,
-            ...(memoryEnabled ? [tool.memory] : []),
+            ...(memoryEnabled ? [tool.memory, tool.sessionsearch] : []),
             ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [tool.lsp] : []),
             ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [tool.plan] : []),
           ],
@@ -284,7 +287,7 @@ export const layer: Layer.Layer<
         if (tool.id === ApplyPatchTool.id) return usePatch
         if (tool.id === EditTool.id || tool.id === WriteTool.id) return !usePatch
 
-        if (tool.id === MemoryTool.id) return input.agent.mode === "primary"
+        if (tool.id === MemoryTool.id || tool.id === SessionSearchTool.id) return input.agent.mode === "primary"
 
         return true
       })

@@ -222,6 +222,39 @@ Code:
 - `packages/opencode/src/provider/transform.ts` (temperature, smallOptions)
 - `packages/opencode/src/session/message-v2.ts` (image stripping)
 
+### Persistent memory
+
+Memories survive across sessions. The agent auto-extracts user preferences,
+design principles, and recurring patterns, deduplicating against existing
+memories via LLM judgment. Injected into the system prompt on every message
+(capped at ~2K tokens). On first session, seeds from AGENTS.md context.
+
+```jsonc
+// opencode.json — disable with:
+{ "memory": false }
+```
+
+- Schema: `packages/opencode/src/memory/memory.sql.ts`
+- Service: `packages/opencode/src/memory/memory.ts` (list, save, update, remove)
+- Tool: `packages/opencode/src/tool/memory.ts` (save/list/delete/update actions)
+- Config: `memory` boolean field (default: `true`)
+- Gated to primary agent only (subagents/explore agents don't see the tool)
+- Migration: `migration/20260422094718_memory/`
+- Tests: `test/memory/memory.test.ts`
+
+#### Session search
+
+Full-text search over past session content using SQLite FTS5. The agent
+uses this to find relevant context from previous work — past decisions,
+implementations, patterns. Also used for memory seeding: on first run,
+the agent searches past sessions for recurring preferences and saves them.
+
+- Tool: `packages/opencode/src/tool/session-search.ts`
+- FTS5 index: populated from existing sessions at migration time, kept
+  current via SQLite trigger on new part inserts
+- Migration: `migration/20260422120000_session_fts/`
+- Queries: stemmed full-text search with snippet extraction and role filtering
+
 ### Container image version lookup
 
 `script/oci-tags` queries OCI registries directly (Docker Hub, ghcr.io, quay.io)
@@ -235,5 +268,5 @@ no stale results, minimal tokens.
 ## Branch strategy
 
 - `dev` = upstream `dev` + fork modifications
-- Fork changes: baked-in local models, style toggle, LaTeX sanitization, gemma/qwen routing, local model fixes, image stripping, oci-tags
-- Upstream merges may need conflict resolution in `config.ts`, `prompt.ts`, `processor.ts`, `system.ts`, `provider.ts`, `transform.ts`, `message-v2.ts`
+- Fork changes: persistent memory + session search, style toggle, LaTeX sanitization, gemma/qwen routing, local model fixes, image stripping, oci-tags
+- Upstream merges may need conflict resolution in `config.ts`, `prompt.ts`, `processor.ts`, `system.ts`, `provider.ts`, `transform.ts`, `message-v2.ts`, `registry.ts`

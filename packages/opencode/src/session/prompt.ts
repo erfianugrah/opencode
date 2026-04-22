@@ -86,9 +86,11 @@ Switch to terse mode: set style="terse" in opencode config.`
 
 const MEMORY_SEED_PROMPT = `# Memory System
 Your persistent memory is empty. This is your first session with memory enabled.
-Review the user's AGENTS.md instructions and any preferences visible in this conversation.
-Save key design principles, coding preferences, and patterns as memories using the memory tool.
-This bootstraps your memory so future sessions start with context.`
+Bootstrap your memory by:
+1. Review the user's AGENTS.md instructions and save key patterns as memories
+2. Use the session_search tool to find recurring preferences in past sessions (try queries like "prefer", "always", "style", "convention", "don't")
+3. Save the most important design principles, coding preferences, and project conventions
+This seeds your memory so future sessions start with context.`
 
 const MEMORY_MANAGEMENT_PROMPT = `# Memory Management
 You have persistent memory across sessions. After completing tasks:

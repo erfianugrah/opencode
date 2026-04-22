@@ -1,0 +1,17 @@
+Search past session content using full-text search.
+
+Use this tool to find relevant context from previous sessions — past decisions,
+implementations, user preferences, and recurring patterns.
+
+Parameters:
+- "query": Search terms (uses stemming — "testing" matches "test", "tests", etc.)
+- "role": Filter by message role: "user", "assistant", or omit for both
+- "limit": Max results to return (default: 10, max: 50)
+
+Returns matching snippets with session ID, role, date, and relevance ranking.
+
+When to use:
+- User references past work ("how did we do X last time?")
+- Need to understand prior decisions or context
+- Seeding memories from past session history
+- Looking for patterns across sessions
