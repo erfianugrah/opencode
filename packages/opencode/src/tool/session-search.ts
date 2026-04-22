@@ -14,6 +14,17 @@ type Metadata = {
   count: number
 }
 
+// Convert plain search terms to a forgiving FTS5 query.
+// "gatekeeper DDD bounded context" -> "gatekeeper OR DDD OR bounded OR context"
+// Already-structured queries (with OR, AND, NOT, quotes, *) pass through unchanged.
+function toFtsQuery(input: string) {
+  if (/\b(OR|AND|NOT)\b|[*"]/.test(input)) return input
+  return input
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(" OR ")
+}
+
 export const SessionSearchTool = Tool.define<typeof parameters, Metadata, never>(
   "session_search",
   Effect.gen(function* () {
@@ -30,10 +41,11 @@ export const SessionSearchTool = Tool.define<typeof parameters, Metadata, never>
           })
 
           const limit = params.limit ?? 10
+          const query = toFtsQuery(params.query)
           const results = yield* Effect.sync(() =>
             Database.use((db) => {
               const roleFilter = params.role ? sql`AND role = ${params.role}` : sql``
-              const stmt = db.all<{
+              return db.all<{
                 content: string
                 session_id: string
                 role: string
@@ -47,12 +59,11 @@ export const SessionSearchTool = Tool.define<typeof parameters, Metadata, never>
                   time_created,
                   rank
                 FROM session_fts
-                WHERE session_fts MATCH ${params.query}
+                WHERE session_fts MATCH ${query}
                   ${roleFilter}
                 ORDER BY rank
                 LIMIT ${limit}`,
               )
-              return stmt
             }),
           )
 
