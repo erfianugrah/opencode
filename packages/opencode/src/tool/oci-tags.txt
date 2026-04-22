@@ -1,0 +1,15 @@
+Query OCI container registries for image tags. Works with Docker Hub, ghcr.io, quay.io, and any OCI-compliant registry.
+
+Use this tool instead of web search when you need container image versions. It queries the registry API directly — no stale results, no wasted tokens.
+
+Parameters:
+- "image": Container image reference (e.g., "vaultwarden/server", "ghcr.io/astral-sh/uv", "nginx")
+- "semver": If true, filter to semver-like tags only (default: false)
+- "limit": Max tags to return (default: 10)
+
+Returns tags sorted by version (latest last).
+
+Examples:
+- image: "vaultwarden/server", semver: true, limit: 5
+- image: "ghcr.io/astral-sh/uv", semver: true
+- image: "nginx"

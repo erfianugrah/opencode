@@ -257,13 +257,14 @@ the agent searches past sessions for recurring preferences and saves them.
 
 ### Container image version lookup
 
-`script/oci-tags` queries OCI registries directly (Docker Hub, ghcr.io, quay.io)
-for container image tags. Agents use this instead of web search — deterministic,
-no stale results, minimal tokens.
+Built-in `oci_tags` tool queries OCI registries directly (Docker Hub, ghcr.io,
+quay.io, any OCI-compliant registry) for container image tags. Agents use this
+instead of web search — deterministic, no stale results, minimal tokens.
+Available to all agents, not just primary.
 
-```bash
-./script/oci-tags -s -n 5 vaultwarden/server
-```
+- Tool: `packages/opencode/src/tool/oci-tags.ts`
+- Tests: `test/tool/oci-tags.test.ts` (parse, live registry queries, sort, filter)
+- CLI fallback: `script/oci-tags` (bash, requires jq)
 
 ## Branch strategy
 

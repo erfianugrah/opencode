@@ -28,6 +28,7 @@ import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
 import { MemoryTool } from "./memory"
 import { SessionSearchTool } from "./session-search"
+import { OciTagsTool } from "./oci-tags"
 import { Memory } from "../memory"
 import { Glob } from "@opencode-ai/shared/util/glob"
 import path from "path"
@@ -119,6 +120,7 @@ export const layer: Layer.Layer<
     const skilltool = yield* SkillTool
     const memorytool = yield* MemoryTool
     const sessionsearch = yield* SessionSearchTool
+    const ocitags = yield* OciTagsTool
     const agent = yield* Agent.Service
 
     const state = yield* InstanceState.make<State>(
@@ -203,6 +205,7 @@ export const layer: Layer.Layer<
           plan: Tool.init(plan),
           memory: Tool.init(memorytool),
           sessionsearch: Tool.init(sessionsearch),
+          ocitags: Tool.init(ocitags),
         })
 
         return {
@@ -224,6 +227,7 @@ export const layer: Layer.Layer<
             tool.skill,
             tool.patch,
             ...(memoryEnabled ? [tool.memory, tool.sessionsearch] : []),
+            tool.ocitags,
             ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [tool.lsp] : []),
             ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [tool.plan] : []),
           ],

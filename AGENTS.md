@@ -6,23 +6,15 @@
 
 ## Container Image Versions
 
-**Do NOT web-search for container image versions.** Use `./script/oci-tags` — it queries OCI registries directly (Docker Hub, ghcr.io, quay.io, any OCI-compliant registry).
+**Do NOT web-search for container image versions.** Use the `oci_tags` tool — it queries OCI registries directly (Docker Hub, ghcr.io, quay.io, any OCI-compliant registry).
 
-```bash
-# Latest 5 semver tags
-./script/oci-tags -s -n 5 vaultwarden/server
-
-# Any registry
-./script/oci-tags -s -n 5 ghcr.io/astral-sh/uv
-
-# Official images (bare name)
-./script/oci-tags -s -n 5 nginx
-
-# All tags
-./script/oci-tags -a vaultwarden/server
+```
+oci_tags(image: "vaultwarden/server", semver: true, limit: 5)
+oci_tags(image: "ghcr.io/astral-sh/uv", semver: true)
+oci_tags(image: "nginx")
 ```
 
-Flags: `-s` semver only, `-n NUM` limit (default 10), `-a` all tags. Requires `jq`.
+Alternatively, `./script/oci-tags` is available as a CLI script in this repo.
 
 ## Style Guide
 
