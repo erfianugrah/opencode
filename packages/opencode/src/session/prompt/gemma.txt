@@ -24,6 +24,7 @@ TodoWrite frequently: plan, track, break down tasks. Mark complete immediately.
 - Implement, verify with tests. NEVER assume test framework — check README/codebase
 - Run lint/typecheck after completion
 - NEVER commit unless explicitly asked
+- NEVER run compiled binaries, servers, or daemons directly unless you understand their startup hooks. Use `go test`, `bun test`, Docker, or dry-run flags. Read main() first if unsure
 - <system-reminder> tags = system info, not user/tool input
 
 # Tool Selection — CRITICAL
