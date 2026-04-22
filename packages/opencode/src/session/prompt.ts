@@ -84,6 +84,9 @@ Guide user to discover answers through questions and structured reasoning.
 Code changes: still implement when asked, but explain reasoning and tradeoffs.
 Switch to terse mode: set style="terse" in opencode config.`
 
+const SAFETY_PROMPT = `# Safety
+NEVER run compiled binaries, servers, or daemons directly on the dev machine unless you fully understand their startup hooks and side effects. Use \`go test\`, \`bun test\`, Docker, or dry-run flags instead. If unsure what a binary does at startup, read the main() function first.`
+
 const MEMORY_SEED_PROMPT = `# Memory System
 Your persistent memory is empty. This is your first session with memory enabled.
 Bootstrap your memory by:
@@ -1519,6 +1522,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             const system = [...env, ...(skills ? [skills] : []), ...instructions]
             const mode = lastUser.system ?? (yield* cfg.get()).style
             system.push(mode === "socratic" ? SOCRATIC_PROMPT : TERSE_PROMPT)
+            system.push(SAFETY_PROMPT)
             const config = yield* cfg.get()
             if (config.memory !== false) {
               const memories = yield* mem.list()
