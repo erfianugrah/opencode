@@ -21,7 +21,7 @@ type Metadata = {
 function toFtsQuery(input: string) {
   if (/\b(OR|AND|NOT)\b|[*"]/.test(input)) return input
   return input
-    .split(/[\s\-_]+/)
+    .split(/[\s\-_./\\:]+/)
     .filter(Boolean)
     .join(" OR ")
 }
