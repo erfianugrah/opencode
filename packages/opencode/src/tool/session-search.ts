@@ -16,11 +16,12 @@ type Metadata = {
 
 // Convert plain search terms to a forgiving FTS5 query.
 // "gatekeeper DDD bounded context" -> "gatekeeper OR DDD OR bounded OR context"
+// "llm-compose model swap" -> "llm OR compose OR model OR swap"
 // Already-structured queries (with OR, AND, NOT, quotes, *) pass through unchanged.
 function toFtsQuery(input: string) {
   if (/\b(OR|AND|NOT)\b|[*"]/.test(input)) return input
   return input
-    .split(/\s+/)
+    .split(/[\s\-_]+/)
     .filter(Boolean)
     .join(" OR ")
 }
