@@ -99,7 +99,7 @@ The proxy auto-swaps models when you select a different one.
 | Model ID | Name | Vision | Thinking | llm-compose preset |
 |---|---|---|---|---|
 | `Qwen3.5-27B-Q4_K_M` | Qwen 3.5 27B Dense (local) | Yes | Yes | `qwen35` |
-| `Qwen3.5-35B-A3B-Q4_K_S` | Qwen 3.5 35B MoE (local) | No | Yes | `qwen35-moe` |
+| `Qwen3.6-35B-A3B-UD-Q4_K_M` | Qwen3.6 35B MoE (local) | No | Yes | `qwen36-moe` |
 | `gemma-4-31B-it-Q4_K_M` | Gemma 4 31B Dense (local) | Yes | Yes | `gemma4` |
 | `qwen3-coder-30b-a3b-instruct-q4_k_m` | Qwen3 Coder 30B MoE (local) | No | No | `qwen3-coder` |
 | `Qwen3-32B-Q4_K_M` | Qwen3 32B (local) | No | Yes | `qwen3` |
