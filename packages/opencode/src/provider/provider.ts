@@ -1108,59 +1108,76 @@ const layer: Layer.Layer<
           providers[providerID] = mergeDeep(match, provider)
         }
 
-        // ── Fork: baked-in local llama.cpp provider ─────────────────────
-        // These models are served by llm-compose (model-switching proxy
-        // in front of llama-server). Baked into the binary so no user
-        // config is needed. The proxy auto-swaps models on request.
+        // ── Fork: local llama.cpp provider via llm-compose proxy ─────────
+        // Models are discovered from the proxy's /v1/models endpoint on
+        // startup. No baked-in list, no config needed. Proxy returns
+        // preset metadata (context, vision, reasoning) in `meta`.
+        const llamaBaseURL = "http://localhost:11434/v1"
         const llamaProvider: Info = {
           id: ProviderID.make("llama-server"),
           name: "llama.cpp (local)",
           env: [],
-          options: { baseURL: "http://localhost:11434/v1" },
+          options: { baseURL: llamaBaseURL },
           source: "config",
           models: {},
         }
-        const llamaModels: Array<{
-          id: string
-          name: string
-          vision: boolean
-          reasoning: boolean
-          context: number
-          output: number
-        }> = [
-          { id: "Qwen3.5-27B-Q4_K_M", name: "Qwen 3.5 27B Dense [vision] (local)", vision: true, reasoning: true, context: 262144, output: 32768 },
-          { id: "Qwen3.6-35B-A3B-UD-Q4_K_M", name: "Qwen3.6 35B MoE (local)", vision: false, reasoning: true, context: 262144, output: 32768 },
-          { id: "gemma-4-31B-it-Q4_K_M", name: "Gemma 4 31B Dense [vision] (local)", vision: true, reasoning: true, context: 262144, output: 32768 },
-          { id: "qwen3-coder-30b-a3b-instruct-q4_k_m", name: "Qwen3 Coder 30B MoE (local)", vision: false, reasoning: false, context: 262144, output: 32768 },
-          { id: "Qwen3-32B-Q4_K_M", name: "Qwen3 32B (local)", vision: false, reasoning: true, context: 131072, output: 32768 },
-        ]
-        for (const m of llamaModels) {
-          llamaProvider.models[m.id] = {
-            id: ModelID.make(m.id),
-            api: { id: m.id, npm: "@ai-sdk/openai-compatible", url: "" },
-            status: "active",
-            name: m.name,
-            providerID: ProviderID.make("llama-server"),
-            capabilities: {
-              temperature: true,
-              reasoning: m.reasoning,
-              attachment: m.vision,
-              toolcall: true,
-              input: { text: true, audio: false, image: m.vision, video: false, pdf: false },
-              output: { text: true, audio: false, image: false, video: false, pdf: false },
-              interleaved: false,
-            },
-            cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-            options: {},
-            limit: { context: m.context, output: m.output },
-            headers: {},
-            family: "",
-            release_date: "",
-            variants: {},
+        type LlamaModelsResponse = {
+          data: Array<{
+            id: string
+            meta?: {
+              name?: string
+              description?: string
+              capabilities?: { vision?: boolean }
+              context?: number
+              reasoning?: boolean
+            }
+          }>
+        }
+        const llamaModelsResponse = yield* Effect.tryPromise({
+          try: (signal) =>
+            fetch(`${llamaBaseURL}/models`, { signal }).then((r) =>
+              r.ok ? (r.json() as Promise<LlamaModelsResponse>) : Promise.resolve(null),
+            ),
+          catch: () => null,
+        }).pipe(
+          Effect.timeout("1 second"),
+          Effect.orElseSucceed(() => null),
+        )
+        if (llamaModelsResponse) {
+          for (const m of llamaModelsResponse.data ?? []) {
+            const meta = m.meta ?? {}
+            const vision = meta.capabilities?.vision ?? false
+            const reasoning = meta.reasoning ?? false
+            const context = meta.context ?? 65536
+            const name = meta.name ?? m.id
+            const suffix = vision ? " [vision]" : ""
+            llamaProvider.models[m.id] = {
+              id: ModelID.make(m.id),
+              api: { id: m.id, npm: "@ai-sdk/openai-compatible", url: "" },
+              status: "active",
+              name: name.includes("(local)") ? name : `${name}${suffix} (local)`,
+              providerID: ProviderID.make("llama-server"),
+              capabilities: {
+                temperature: true,
+                reasoning,
+                attachment: vision,
+                toolcall: true,
+                input: { text: true, audio: false, image: vision, video: false, pdf: false },
+                output: { text: true, audio: false, image: false, video: false, pdf: false },
+                interleaved: false,
+              },
+              cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+              options: {},
+              limit: { context, output: 32768 },
+              headers: {},
+              family: "",
+              release_date: "",
+              variants: {},
+            }
           }
         }
         database["llama-server"] = llamaProvider
-        // ── End fork: baked-in local provider ─────────────────────────
+        // ── End fork: local provider ─────────────────────────────────────
 
         // load plugins first so config() hook runs before reading cfg.provider
         const plugins = yield* plugin.list()
