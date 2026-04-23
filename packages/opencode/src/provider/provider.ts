@@ -1150,12 +1150,11 @@ const layer: Layer.Layer<
             const reasoning = meta.reasoning ?? false
             const context = meta.context ?? 65536
             const name = meta.name ?? m.id
-            const suffix = vision ? " [vision]" : ""
             llamaProvider.models[m.id] = {
               id: ModelID.make(m.id),
               api: { id: m.id, npm: "@ai-sdk/openai-compatible", url: "" },
               status: "active",
-              name: name.includes("(local)") ? name : `${name}${suffix} (local)`,
+              name,
               providerID: ProviderID.make("llama-server"),
               capabilities: {
                 temperature: true,
