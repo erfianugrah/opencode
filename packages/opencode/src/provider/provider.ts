@@ -1269,7 +1269,8 @@ const layer: Layer.Layer<
           const providerID = ProviderID.make(id)
           if (disabled.has(providerID)) continue
           const apiKey = provider.env.map((item) => envs[item]).find(Boolean)
-          if (!apiKey) continue
+          // Providers with no env requirements (e.g. local llama-server) are always active
+          if (!apiKey && provider.env.length > 0) continue
           mergeProvider(providerID, {
             source: "env",
             key: provider.env.length === 1 ? apiKey : undefined,
