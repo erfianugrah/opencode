@@ -1,12 +1,11 @@
-import z from "zod"
-import { Effect } from "effect"
+import { Effect, Schema } from "effect"
 import * as Tool from "./tool"
 import DESCRIPTION from "./oci-tags.txt"
 
-const parameters = z.object({
-  image: z.string().describe("Container image reference (e.g. vaultwarden/server, ghcr.io/astral-sh/uv, nginx)"),
-  semver: z.boolean().optional().describe("Filter to semver-like tags only (default: false)"),
-  limit: z.number().min(1).max(100).optional().describe("Max tags to return (default: 10)"),
+const Parameters = Schema.Struct({
+  image: Schema.String.annotate({ description: "Container image reference (e.g. vaultwarden/server, ghcr.io/astral-sh/uv, nginx)" }),
+  semver: Schema.optional(Schema.Boolean.annotate({ description: "Filter to semver-like tags only (default: false)" })),
+  limit: Schema.optional(Schema.Number.annotate({ description: "Max tags to return (default: 10)" })),
 })
 
 type Metadata = {
@@ -15,7 +14,6 @@ type Metadata = {
 }
 
 function parse(image: string) {
-  // Strip digest and tag
   const clean = image.replace(/@.*$/, "").replace(/:([^/]*)$/, "")
   const first = clean.split("/")[0]
   if (!clean.includes("/")) return { registry: "registry-1.docker.io", repo: `library/${clean}` }
@@ -24,7 +22,6 @@ function parse(image: string) {
 }
 
 async function token(registry: string, repo: string): Promise<string | undefined> {
-  // Probe the tags endpoint to get the auth challenge
   const url = `https://${registry}/v2/${repo}/tags/list`
   const probe = await fetch(url, { method: "GET", redirect: "follow" }).catch(() => null)
   if (!probe || probe.ok) return undefined
@@ -51,7 +48,6 @@ async function tags(registry: string, repo: string, auth: string | undefined): P
     const json = (await resp.json()) as { tags?: string[] }
     if (json.tags) result.push(...json.tags)
 
-    // Follow pagination via Link header
     const link: string | null = resp.headers.get("link")
     const next: string | undefined = link?.match(/<([^>]+)>/)?.[1]
     if (next) {
@@ -64,13 +60,13 @@ async function tags(registry: string, repo: string, auth: string | undefined): P
   return result
 }
 
-export const OciTagsTool = Tool.define<typeof parameters, Metadata, never>(
+export const OciTagsTool = Tool.define<typeof Parameters, Metadata, never>(
   "oci_tags",
   Effect.gen(function* () {
     return {
       description: DESCRIPTION,
-      parameters,
-      execute: (params: z.infer<typeof parameters>, ctx: Tool.Context<Metadata>) =>
+      parameters: Parameters,
+      execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context<Metadata>) =>
         Effect.gen(function* () {
           yield* ctx.ask({
             permission: "oci_tags",
@@ -87,7 +83,6 @@ export const OciTagsTool = Tool.define<typeof parameters, Metadata, never>(
           let filtered = all
           if (params.semver) filtered = filtered.filter((t) => /^v?\d+\.\d+/.test(t))
 
-          // Version sort: split on dots/hyphens, compare numerically where possible
           filtered.sort((a, b) => {
             const pa = a.replace(/^v/, "").split(/[.\-]/)
             const pb = b.replace(/^v/, "").split(/[.\-]/)
@@ -101,7 +96,7 @@ export const OciTagsTool = Tool.define<typeof parameters, Metadata, never>(
             return 0
           })
 
-          const limit = params.limit ?? 10
+          const limit = Math.min(params.limit ?? 10, 100)
           const result = filtered.slice(-limit)
 
           if (result.length === 0)

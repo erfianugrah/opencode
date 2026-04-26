@@ -1,13 +1,12 @@
-import z from "zod"
-import { Effect } from "effect"
+import { Effect, Schema } from "effect"
 import * as Tool from "./tool"
 import { Memory } from "../memory"
 import DESCRIPTION from "./memory.txt"
 
-const parameters = z.object({
-  action: z.enum(["save", "list", "delete", "update"]).describe("Action to perform"),
-  content: z.string().optional().describe("Memory content (required for save/update)"),
-  id: z.string().optional().describe("Memory ID (required for delete/update)"),
+const Parameters = Schema.Struct({
+  action: Schema.Literals(["save", "list", "delete", "update"]).annotate({ description: "Action to perform" }),
+  content: Schema.optional(Schema.String.annotate({ description: "Memory content (required for save/update)" })),
+  id: Schema.optional(Schema.String.annotate({ description: "Memory ID (required for delete/update)" })),
 })
 
 type Metadata = {
@@ -15,15 +14,15 @@ type Metadata = {
   count?: number
 }
 
-export const MemoryTool = Tool.define<typeof parameters, Metadata, Memory.Service>(
+export const MemoryTool = Tool.define<typeof Parameters, Metadata, Memory.Service>(
   "memory",
   Effect.gen(function* () {
     const memory = yield* Memory.Service
 
     return {
       description: DESCRIPTION,
-      parameters,
-      execute: (params: z.infer<typeof parameters>, ctx: Tool.Context<Metadata>) =>
+      parameters: Parameters,
+      execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context<Metadata>) =>
         Effect.gen(function* () {
           yield* ctx.ask({
             permission: "memory",

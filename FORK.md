@@ -86,29 +86,19 @@ Disable auto-update so the official release doesn't overwrite your build:
 }
 ```
 
-## Baked-in local models
+## Local model discovery
 
-The `llama-server` provider with all 5 local models is baked directly into the
-binary at `packages/opencode/src/provider/provider.ts`. No user config needed —
-just build the fork and the models appear in `/models`.
+The `llama-server` provider is baked into the binary at
+`packages/opencode/src/provider/provider.ts`. It connects to
+`http://localhost:11434/v1` (the
+[llm-compose](https://github.com/erfianugrah/llm-compose) model-switching proxy)
+and **discovers models dynamically** from the proxy's `/v1/models` endpoint on
+startup. No baked-in model list, no config needed — the proxy returns metadata
+(name, context, vision, reasoning) and models appear in `/models` automatically.
 
-The provider connects to `http://localhost:11434/v1` (the
-[llm-compose](https://github.com/erfianugrah/llm-compose) model-switching proxy).
-The proxy auto-swaps models when you select a different one.
-
-| Model ID | Name | Vision | Thinking | llm-compose preset |
-|---|---|---|---|---|
-| `Qwen3.5-27B-Q4_K_M` | Qwen 3.5 27B Dense (local) | Yes | Yes | `qwen35` |
-| `Qwen3.6-35B-A3B-UD-Q4_K_M` | Qwen3.6 35B MoE (local) | No | Yes | `qwen36-moe` |
-| `gemma-4-31B-it-Q4_K_M` | Gemma 4 31B Dense (local) | Yes | Yes | `gemma4` |
-| `qwen3-coder-30b-a3b-instruct-q4_k_m` | Qwen3 Coder 30B MoE (local) | No | No | `qwen3-coder` |
-| `Qwen3-32B-Q4_K_M` | Qwen3 32B (local) | No | Yes | `qwen3` |
-
-Model ID = GGUF filename without `.gguf`. System prompts are selected by model
-ID substring matching in `packages/opencode/src/session/system.ts` — `gemma` and
-`qwen` both route to the local model prompt (`gemma.txt`).
-
-To add/remove models, edit the `llamaModels` array in `provider.ts` and rebuild.
+System prompts are selected by model ID substring matching in
+`packages/opencode/src/session/system.ts` — `gemma` and `qwen` both route to
+the local model prompt (`gemma.txt`).
 
 ## Channel database isolation
 
@@ -179,6 +169,7 @@ Adds a `style` config option that controls output verbosity:
 
 - Orthogonal to build/plan modes (all 4 combinations work)
 - Toggle in-session via command palette: `/style` to toggle, or pick from the menu
+- Style + mode indicator injected as system-reminder in chat (e.g. `socratic\nbuild`)
 - Config schema: `packages/opencode/src/config/config.ts` (field: `style`)
 - Prompt constants: `TERSE_PROMPT` / `SOCRATIC_PROMPT` in `packages/opencode/src/session/prompt.ts`
 - UI toggle: `packages/opencode/src/cli/cmd/tui/app.tsx` (command palette action)
@@ -255,6 +246,23 @@ the agent searches past sessions for recurring preferences and saves them.
 - Migration: `migration/20260422120000_session_fts/`
 - Queries: stemmed full-text search with snippet extraction and role filtering
 
+### Title generation fallback
+
+When LLM-based title generation fails (rate limiting, timeout, model error),
+falls back to truncating the first user message to 60 chars instead of showing
+"New session - timestamp".
+
+- Code: `packages/opencode/src/session/prompt.ts` (`fallbackTitle` function)
+
+### Safety guardrail
+
+`SAFETY_PROMPT` injected into every session's system prompt — instructs agents
+to never run compiled binaries/servers/daemons directly without understanding
+startup hooks. Use `go test`, `bun test`, Docker, or dry-run flags instead.
+
+- Code: `packages/opencode/src/session/prompt.ts` (`SAFETY_PROMPT` constant)
+- Also in `AGENTS.md` for repo-level enforcement
+
 ### Container image version lookup
 
 Built-in `oci_tags` tool queries OCI registries directly (Docker Hub, ghcr.io,
@@ -269,5 +277,5 @@ Available to all agents, not just primary.
 ## Branch strategy
 
 - `dev` = upstream `dev` + fork modifications
-- Fork changes: persistent memory + session search, style toggle, LaTeX sanitization, gemma/qwen routing, local model fixes, image stripping, oci-tags
+- Fork changes: persistent memory + session search, style toggle + indicator, safety guardrail, title fallback, LaTeX sanitization, gemma/qwen routing, local model discovery, oci-tags
 - Upstream merges may need conflict resolution in `config.ts`, `prompt.ts`, `processor.ts`, `system.ts`, `provider.ts`, `transform.ts`, `message-v2.ts`, `registry.ts`

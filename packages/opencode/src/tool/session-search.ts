@@ -1,13 +1,12 @@
-import z from "zod"
-import { Effect } from "effect"
+import { Effect, Schema } from "effect"
 import * as Tool from "./tool"
 import { Database, sql } from "../storage"
 import DESCRIPTION from "./session-search.txt"
 
-const parameters = z.object({
-  query: z.string().describe("Search terms for full-text search across past sessions"),
-  role: z.enum(["user", "assistant"]).optional().describe("Filter by message role"),
-  limit: z.number().min(1).max(50).default(10).optional().describe("Max results (default: 10)"),
+const Parameters = Schema.Struct({
+  query: Schema.String.annotate({ description: "Search terms for full-text search across past sessions" }),
+  role: Schema.optional(Schema.Literals(["user", "assistant"]).annotate({ description: "Filter by message role" })),
+  limit: Schema.optional(Schema.Number.annotate({ description: "Max results (default: 10, max: 50)" })),
 })
 
 type Metadata = {
@@ -26,13 +25,13 @@ function toFtsQuery(input: string) {
     .join(" OR ")
 }
 
-export const SessionSearchTool = Tool.define<typeof parameters, Metadata, never>(
+export const SessionSearchTool = Tool.define<typeof Parameters, Metadata, never>(
   "session_search",
   Effect.gen(function* () {
     return {
       description: DESCRIPTION,
-      parameters,
-      execute: (params: z.infer<typeof parameters>, ctx: Tool.Context<Metadata>) =>
+      parameters: Parameters,
+      execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context<Metadata>) =>
         Effect.gen(function* () {
           yield* ctx.ask({
             permission: "session_search",
@@ -41,7 +40,7 @@ export const SessionSearchTool = Tool.define<typeof parameters, Metadata, never>
             metadata: {},
           })
 
-          const limit = params.limit ?? 10
+          const limit = Math.min(params.limit ?? 10, 50)
           const query = toFtsQuery(params.query)
           const results = yield* Effect.sync(() =>
             Database.use((db) => {
