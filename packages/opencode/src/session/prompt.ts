@@ -200,7 +200,6 @@ export const layer = Layer.effect(
       return parts
     })
 
-    // Extract a fallback title from the first user message text
     function fallbackTitle(msg: MessageV2.WithParts): string | undefined {
       const text = msg.parts
         .filter((p): p is MessageV2.TextPart => p.type === "text" && !p.synthetic)
@@ -235,7 +234,6 @@ export const layer = Layer.effect(
       const subtasks = firstUser.parts.filter((p): p is MessageV2.SubtaskPart => p.type === "subtask")
       const onlySubtasks = subtasks.length > 0 && firstUser.parts.every((p) => p.type === "subtask")
 
-      // Try LLM-generated title, fall back to first message text on any failure
       const llmTitle = yield* Effect.gen(function* () {
         const ag = yield* agents.get("title")
         if (!ag) return undefined
@@ -1541,32 +1539,34 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               MessageV2.toModelMessagesEffect(msgs, model),
             ])
             const system = [...env, ...(skills ? [skills] : []), ...instructions]
-            const mode = lastUser.system ?? (yield* cfg.get()).style
+            const config = yield* cfg.get()
+            const mode = lastUser.system ?? config.style
             system.push(mode === "socratic" ? SOCRATIC_PROMPT : TERSE_PROMPT)
             system.push(SAFETY_PROMPT)
-            const config = yield* cfg.get()
             if (config.memory !== false) {
-              const memories = yield* mem.list()
-              if (memories.length === 0) {
-                system.push(MEMORY_SEED_PROMPT)
-              } else {
-                const lines = memories.map((m) => `- ${m.content}`)
-                const block = lines.join("\n")
-                if (block.length > 8000) {
-                  const truncated = memories.slice(0, 30)
-                  const rest = memories.length - 30
-                  system.push(
-                    [
-                      "# Memories (from past sessions)",
-                      ...truncated.map((m) => `- ${m.content}`),
-                      `(${rest} more memories stored — use memory tool with action "list" to see all)`,
-                    ].join("\n"),
-                  )
+              yield* Effect.gen(function* () {
+                const memories = yield* mem.list()
+                if (memories.length === 0) {
+                  system.push(MEMORY_SEED_PROMPT)
                 } else {
-                  system.push("# Memories (from past sessions)\n" + block)
+                  const lines = memories.map((m) => `- ${m.content}`)
+                  const block = lines.join("\n")
+                  if (block.length > 8000) {
+                    const truncated = memories.slice(0, 30)
+                    const rest = memories.length - 30
+                    system.push(
+                      [
+                        "# Memories (from past sessions)",
+                        ...truncated.map((m) => `- ${m.content}`),
+                        `(${rest} more memories stored — use memory tool with action "list" to see all)`,
+                      ].join("\n"),
+                    )
+                  } else {
+                    system.push("# Memories (from past sessions)\n" + block)
+                  }
+                  system.push(MEMORY_MANAGEMENT_PROMPT)
                 }
-                system.push(MEMORY_MANAGEMENT_PROMPT)
-              }
+              }).pipe(Effect.ignore)
             }
             const format = lastUser.format ?? { type: "text" as const }
             if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
