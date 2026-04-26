@@ -1417,33 +1417,13 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           }
 
           step++
-          if (step === 1) {
+          if (step === 1)
             yield* title({
               session,
               modelID: lastUser.model.modelID,
               providerID: lastUser.model.providerID,
               history: msgs,
             }).pipe(Effect.ignore, Effect.forkIn(scope))
-
-            // Inject style + mode indicator once per user message
-            const style = lastUser.system ?? (yield* cfg.get()).style
-            if (style) {
-              const lastUserMsg = msgs.findLast((m) => m.info.role === "user")
-              if (lastUserMsg) {
-                const agent = yield* agents.get(lastUser.agent)
-                const mode = agent?.name === "plan" ? "plan" : "build"
-                const part = yield* sessions.updatePart({
-                  id: PartID.ascending(),
-                  messageID: lastUserMsg.info.id,
-                  sessionID: lastUserMsg.info.sessionID,
-                  type: "text",
-                  text: `${style}\n${mode}`,
-                  synthetic: true,
-                })
-                lastUserMsg.parts.push(part)
-              }
-            }
-          }
 
           const model = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID)
           const task = tasks.pop()
