@@ -279,9 +279,23 @@ export const layer = Layer.effect(
       messages: MessageV2.WithParts[]
       agent: Agent.Info
       session: Session.Info
+      style?: string
     }) {
       const userMessage = input.messages.findLast((msg) => msg.info.role === "user")
       if (!userMessage) return input.messages
+
+      // Inject style indicator as a system-reminder so it's visible in the chat
+      if (input.style) {
+        const mode = input.agent.name === "plan" ? "plan" : "build"
+        userMessage.parts.push({
+          id: PartID.ascending(),
+          messageID: userMessage.info.id,
+          sessionID: userMessage.info.sessionID,
+          type: "text",
+          text: `${input.style}\n${mode}`,
+          synthetic: true,
+        })
+      }
 
       if (!Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE) {
         if (input.agent.name === "plan") {
@@ -1459,7 +1473,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           }
           const maxSteps = agent.steps ?? Infinity
           const isLastStep = step >= maxSteps
-          msgs = yield* insertReminders({ messages: msgs, agent, session })
+          msgs = yield* insertReminders({ messages: msgs, agent, session, style: lastUser.system })
 
           const msg: MessageV2.Assistant = {
             id: MessageID.ascending(),
