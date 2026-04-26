@@ -12,10 +12,9 @@ SELECT
   json_extract(p.data, '$.text'),
   p.session_id,
   p.id,
-  json_extract(m.data, '$.role'),
+  '',
   p.time_created
 FROM part p
-JOIN message m ON p.message_id = m.id
 WHERE json_extract(p.data, '$.type') = 'text'
   AND json_extract(p.data, '$.text') IS NOT NULL
   AND length(json_extract(p.data, '$.text')) > 0;
@@ -30,7 +29,7 @@ BEGIN
     json_extract(NEW.data, '$.text'),
     NEW.session_id,
     NEW.id,
-    (SELECT json_extract(m.data, '$.role') FROM message m WHERE m.id = NEW.message_id),
+    '',
     NEW.time_created
   );
 END;

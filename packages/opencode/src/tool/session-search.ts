@@ -44,7 +44,9 @@ export const SessionSearchTool = Tool.define<typeof Parameters, Metadata, never>
           const query = toFtsQuery(params.query)
           const results = yield* Effect.sync(() =>
             Database.use((db) => {
-              const roleFilter = params.role ? sql`AND role = ${params.role}` : sql``
+              const roleFilter = params.role
+                ? sql`AND json_extract(m.data, '$.role') = ${params.role}`
+                : sql``
               return db.all<{
                 content: string
                 session_id: string
@@ -54,14 +56,16 @@ export const SessionSearchTool = Tool.define<typeof Parameters, Metadata, never>
               }>(
                 sql`SELECT
                   snippet(session_fts, 0, '>>>', '<<<', '...', 40) as content,
-                  session_id,
-                  role,
-                  time_created,
-                  rank
-                FROM session_fts
+                  f.session_id,
+                  COALESCE(json_extract(m.data, '$.role'), '') as role,
+                  f.time_created,
+                  f.rank
+                FROM session_fts f
+                LEFT JOIN part p ON p.id = f.part_id
+                LEFT JOIN message m ON m.id = p.message_id
                 WHERE session_fts MATCH ${query}
                   ${roleFilter}
-                ORDER BY rank
+                ORDER BY f.rank
                 LIMIT ${limit}`,
               )
             }),
