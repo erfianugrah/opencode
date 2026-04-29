@@ -13,6 +13,7 @@ import { ModelID, ProviderID } from "../provider/schema"
 import { type Tool as AITool, tool, jsonSchema, type ToolExecutionOptions, asSchema } from "ai"
 import type { JSONSchema7 } from "@ai-sdk/provider"
 import { SessionCompaction } from "./compaction"
+import { usable } from "./overflow"
 import { Bus } from "../bus"
 import { ProviderTransform } from "../provider"
 import { SystemPrompt } from "./system"
@@ -98,7 +99,7 @@ Bootstrap your memory by:
 3. Save the most important design principles, coding preferences, and project conventions
 This seeds your memory so future sessions start with context.`
 
-const MEMORY_MANAGEMENT_PROMPT = `# Memory Management
+const MEMORY_RECALL_PROMPT = `# Memory Management
 You have persistent memory across sessions. After completing tasks:
 1. Consider whether any user preferences or recurring patterns should be saved
 2. Before saving, list existing memories to check for duplicates
@@ -106,6 +107,13 @@ You have persistent memory across sessions. After completing tasks:
 4. Keep memories concise (1-2 sentences), actionable, and specific
 5. Delete outdated or superseded memories
 6. Consolidate related memories when the count gets high`
+
+const MEMORY_LEAN_PROMPT = `# Context Recall
+You have tools: \`session_search\` (full-text search past sessions) and \`memory\` (list/save curated facts).
+Use these proactively when you need project context, conventions, or past decisions.`
+
+// Context budget threshold (tokens) below which we skip static memory injection
+const LEAN_MEMORY_THRESHOLD = 64_000
 
 const log = Log.create({ service: "session.prompt" })
 const elog = EffectLogger.create({ service: "session.prompt" })
@@ -1545,9 +1553,13 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             system.push(SAFETY_PROMPT)
             if (config.memory !== false) {
               yield* Effect.gen(function* () {
+                const budget = usable({ cfg: config, model })
                 const memories = yield* mem.list()
                 if (memories.length === 0) {
                   system.push(MEMORY_SEED_PROMPT)
+                } else if (budget > 0 && budget < LEAN_MEMORY_THRESHOLD) {
+                  // Small context: skip static memories, rely on tools
+                  system.push(MEMORY_LEAN_PROMPT)
                 } else {
                   const lines = memories.map((m) => `- ${m.content}`)
                   const block = lines.join("\n")
@@ -1564,7 +1576,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   } else {
                     system.push("# Memories (from past sessions)\n" + block)
                   }
-                  system.push(MEMORY_MANAGEMENT_PROMPT)
+                  system.push(MEMORY_RECALL_PROMPT)
                 }
               }).pipe(Effect.ignore)
             }

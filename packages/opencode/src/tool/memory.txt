@@ -15,3 +15,8 @@ Guidelines:
 - Delete memories that are outdated or superseded
 - Prefer 30 precise memories over 100 vague ones
 - Consolidate related memories when the count gets high
+
+Memory Management:
+After completing tasks, consider whether any user preferences or recurring patterns should be saved.
+Before saving, list existing memories to check for duplicates. If a concept is already covered, update it rather than creating a duplicate.
+Delete outdated or superseded memories. Consolidate related memories when the count gets high.
