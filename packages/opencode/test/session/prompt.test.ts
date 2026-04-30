@@ -1918,7 +1918,9 @@ it.live(
 // Server-side resolvePart routes data: URLs through compressImage. This test
 // proves that pipeline shrinks the persisted attachment, covering the bypass
 // fixed in this changeset.
-it.live(
+const hasMagick = Boolean(Bun.which("magick") ?? Bun.which("convert"))
+const itMagick = hasMagick ? it.live : it.live.skip
+itMagick(
   "compresses image data: URL attachments at user message creation",
   () =>
     provideTmpdirInstance(
@@ -1965,7 +1967,7 @@ it.live(
   15_000,
 )
 
-it.live(
+itMagick(
   "passes image data: URL through untouched when below min_bytes",
   () =>
     provideTmpdirInstance(

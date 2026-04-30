@@ -3,6 +3,8 @@ import path from "path"
 import { compressImage, isImageAttachment, sniffAttachmentMime } from "../../src/util/media"
 
 const FIXTURES_DIR = path.join(import.meta.dir, "../tool/fixtures")
+const hasMagick = Boolean(Bun.which("magick") ?? Bun.which("convert"))
+const skipIfNoMagick = hasMagick ? test : test.skip
 
 describe("compressImage", () => {
   test("passes small images through untouched", async () => {
@@ -34,7 +36,7 @@ describe("compressImage", () => {
     expect(out.mime).toBe("application/pdf")
   })
 
-  test("shrinks the large fixture and re-encodes to JPEG", async () => {
+  skipIfNoMagick("shrinks the large fixture and re-encodes to JPEG", async () => {
     const file = Bun.file(path.join(FIXTURES_DIR, "large-image.png"))
     const bytes = new Uint8Array(await file.arrayBuffer())
     expect(bytes.byteLength).toBeGreaterThan(1024 * 1024)
@@ -46,7 +48,7 @@ describe("compressImage", () => {
     expect(isImageAttachment(out.mime)).toBe(true)
   })
 
-  test("respects custom maxEdge", async () => {
+  skipIfNoMagick("respects custom maxEdge", async () => {
     const file = Bun.file(path.join(FIXTURES_DIR, "large-image.png"))
     const bytes = new Uint8Array(await file.arrayBuffer())
     const wide = await compressImage(bytes, "image/png", { maxEdge: 1568 })

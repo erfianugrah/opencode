@@ -29,16 +29,16 @@ export function sniffAttachmentMime(bytes: Uint8Array, fallback: string) {
 //
 // Vision models cap effective resolution (Anthropic ~1568 max edge — anything
 // larger is downscaled server-side and pure waste in the prompt). Re-encoding
-// to JPEG q90 (mozjpeg) also typically shrinks 1MB+ PNGs by 5–10× with no
-// perceptible loss for vision tasks. Each attachment is replayed on every
-// subsequent turn (see message-v2.ts buildToolMessages), so this multiplies
-// across the session.
+// to JPEG q90 also typically shrinks 1MB+ PNGs by 5–10× with no perceptible
+// loss for vision tasks. Each attachment is replayed on every subsequent turn
+// (see message-v2.ts buildToolMessages), so this multiplies across the session.
 //
-// Uses sharp (libvips). Falls through to the original bytes if the input is
-// already small, sharp can't decode the image, or the compressed result isn't
-// actually smaller.
+// Shells out to imagemagick (`magick` v7 or `convert` v6). Sharp would be
+// nicer (faster, better mozjpeg encoder) but its native-binding loader breaks
+// inside `bun build --compile`'s bunfs. Falls through to the original bytes
+// if the tool isn't available, the input is already small, or the compressed
+// result isn't actually smaller.
 
-import sharp from "sharp"
 import * as Log from "@opencode-ai/core/util/log"
 
 const log = Log.create({ service: "media.compress" })
@@ -47,13 +47,25 @@ const COMPRESS_SKIP_BELOW_BYTES = 256 * 1024
 const COMPRESS_DEFAULT_MAX_EDGE = 1568
 const COMPRESS_DEFAULT_QUALITY = 90
 
-async function runSharp(bytes: Uint8Array, maxEdge: number, quality: number) {
-  const out = await sharp(bytes)
-    .rotate()
-    .resize({ width: maxEdge, height: maxEdge, fit: "inside", withoutEnlargement: true })
-    .jpeg({ quality, mozjpeg: true })
-    .toBuffer()
-  return new Uint8Array(out)
+let cachedTool: string | null | undefined
+
+function findTool() {
+  if (cachedTool !== undefined) return cachedTool
+  cachedTool = Bun.which("magick") ?? Bun.which("convert") ?? null
+  return cachedTool
+}
+
+async function runMagick(tool: string, bytes: Uint8Array, maxEdge: number, quality: number) {
+  const proc = Bun.spawn(
+    [tool, "-", "-auto-orient", "-resize", `${maxEdge}x${maxEdge}>`, "-strip", "-quality", String(quality), "jpg:-"],
+    { stdin: "pipe", stdout: "pipe", stderr: "ignore" },
+  )
+  proc.stdin.write(bytes)
+  await proc.stdin.end()
+  const out = new Uint8Array(await new Response(proc.stdout).arrayBuffer())
+  const code = await proc.exited
+  if (code !== 0 || out.byteLength === 0) return null
+  return out
 }
 
 export async function compressImage(
@@ -66,9 +78,15 @@ export async function compressImage(
   const minBytes = opts.minBytes ?? COMPRESS_SKIP_BELOW_BYTES
   if (bytes.byteLength < minBytes) return { bytes, mime }
 
+  const tool = findTool()
+  if (!tool) {
+    log.debug("no imagemagick on PATH, passing through", { mime, bytes: bytes.byteLength })
+    return { bytes, mime }
+  }
+
   const maxEdge = opts.maxEdge ?? COMPRESS_DEFAULT_MAX_EDGE
   const quality = opts.quality ?? COMPRESS_DEFAULT_QUALITY
-  const out = await runSharp(bytes, maxEdge, quality).catch((err) => {
+  const out = await runMagick(tool, bytes, maxEdge, quality).catch((err) => {
     log.warn("compress failed, passing through", { mime, bytes: bytes.byteLength, error: String(err) })
     return null
   })
