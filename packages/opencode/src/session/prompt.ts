@@ -45,6 +45,7 @@ import { Shell } from "@/shell/shell"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { Truncate } from "@/tool"
 import { decodeDataUrl } from "@/util/data-url"
+import { compressImage, imageCompressOpts, isImageAttachment } from "@/util/media"
 import { Process } from "@/util"
 import { Cause, Effect, Exit, Layer, Option, Scope, Context, Schema } from "effect"
 import { zod } from "@/util/effect-zod"
@@ -540,21 +541,41 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               for (const contentItem of result.content) {
                 if (contentItem.type === "text") textParts.push(contentItem.text)
                 else if (contentItem.type === "image") {
+                  const raw = new Uint8Array(Buffer.from(contentItem.data, "base64"))
+                  const cfgInfo = yield* cfg.get()
+                  const out = yield* Effect.promise(() =>
+                    compressImage(raw, contentItem.mimeType, imageCompressOpts(cfgInfo.media)),
+                  )
                   attachments.push({
                     type: "file",
-                    mime: contentItem.mimeType,
-                    url: `data:${contentItem.mimeType};base64,${contentItem.data}`,
+                    mime: out.mime,
+                    url: `data:${out.mime};base64,${Buffer.from(out.bytes).toString("base64")}`,
                   })
                 } else if (contentItem.type === "resource") {
                   const { resource } = contentItem
                   if (resource.text) textParts.push(resource.text)
                   if (resource.blob) {
-                    attachments.push({
-                      type: "file",
-                      mime: resource.mimeType ?? "application/octet-stream",
-                      url: `data:${resource.mimeType ?? "application/octet-stream"};base64,${resource.blob}`,
-                      filename: resource.uri,
-                    })
+                    const blobMime = resource.mimeType ?? "application/octet-stream"
+                    if (isImageAttachment(blobMime)) {
+                      const raw = new Uint8Array(Buffer.from(resource.blob, "base64"))
+                      const cfgInfo = yield* cfg.get()
+                      const out = yield* Effect.promise(() =>
+                        compressImage(raw, blobMime, imageCompressOpts(cfgInfo.media)),
+                      )
+                      attachments.push({
+                        type: "file",
+                        mime: out.mime,
+                        url: `data:${out.mime};base64,${Buffer.from(out.bytes).toString("base64")}`,
+                        filename: resource.uri,
+                      })
+                    } else {
+                      attachments.push({
+                        type: "file",
+                        mime: blobMime,
+                        url: `data:${blobMime};base64,${resource.blob}`,
+                        filename: resource.uri,
+                      })
+                    }
                   }
                 }
               }
@@ -1109,6 +1130,25 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   { ...part, messageID: info.id, sessionID: input.sessionID },
                 ]
               }
+              if (isImageAttachment(part.mime)) {
+                const match = part.url.match(/^data:[^;,]+;base64,(.*)$/)
+                if (match) {
+                  const raw = new Uint8Array(Buffer.from(match[1], "base64"))
+                  const cfgInfo = yield* cfg.get()
+                  const out = yield* Effect.promise(() =>
+                    compressImage(raw, part.mime, imageCompressOpts(cfgInfo.media)),
+                  )
+                  return [
+                    {
+                      ...part,
+                      mime: out.mime,
+                      url: `data:${out.mime};base64,${Buffer.from(out.bytes).toString("base64")}`,
+                      messageID: info.id,
+                      sessionID: input.sessionID,
+                    },
+                  ]
+                }
+              }
               break
             case "file:": {
               log.info("file", { mime: part.mime })
@@ -1251,6 +1291,11 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                 ]
               }
 
+              const raw = new Uint8Array(yield* fsys.readFile(filepath).pipe(Effect.catch(Effect.die)))
+              const cfgInfo = yield* cfg.get()
+              const out = isImageAttachment(part.mime)
+                ? yield* Effect.promise(() => compressImage(raw, part.mime, imageCompressOpts(cfgInfo.media)))
+                : { bytes: raw, mime: part.mime }
               return [
                 {
                   messageID: info.id,
@@ -1264,10 +1309,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   messageID: info.id,
                   sessionID: input.sessionID,
                   type: "file",
-                  url:
-                    `data:${part.mime};base64,` +
-                    Buffer.from(yield* fsys.readFile(filepath).pipe(Effect.catch(Effect.die))).toString("base64"),
-                  mime: part.mime,
+                  url: `data:${out.mime};base64,${Buffer.from(out.bytes).toString("base64")}`,
+                  mime: out.mime,
                   filename: part.filename!,
                   source: part.source,
                 },

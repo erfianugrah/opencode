@@ -218,6 +218,28 @@ export const Info = Schema.Struct({
     description:
       "Thresholds for truncating tool output. When output exceeds either limit, the full text is written to the truncation directory and a preview is returned.",
   }),
+  media: Schema.optional(
+    Schema.Struct({
+      image_compress: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "Re-encode large image attachments to JPEG and clamp to a max edge before sending to the model. Cuts replay cost across turns. Requires imagemagick (`magick` or `convert`) on PATH. Default: true.",
+      }),
+      image_max_edge: Schema.optional(PositiveInt).annotate({
+        description:
+          "Maximum edge (pixels) for image attachments. Vision models downsample beyond ~1568 anyway, so larger values are wasted bytes. Default: 1568.",
+      }),
+      image_quality: Schema.optional(PositiveInt).annotate({
+        description: "JPEG quality for re-encoded images (1–100). Default: 90.",
+      }),
+      image_min_bytes: Schema.optional(PositiveInt).annotate({
+        description:
+          "Skip compression for images below this byte size. Default: 262144 (256 KB).",
+      }),
+    }),
+  ).annotate({
+    description:
+      "Media attachment handling. Controls automatic image compression for the read tool, webfetch tool, and pasted/dropped user attachments.",
+  }),
   compaction: Schema.optional(
     Schema.Struct({
       auto: Schema.optional(Schema.Boolean).annotate({

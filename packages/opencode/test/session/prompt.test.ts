@@ -1910,3 +1910,92 @@ it.live(
     ),
   30_000,
 )
+
+// Image-attachment compression at the data: URL chokepoint.
+//
+// All upstream sources (TUI clipboard paste, ACP image part, GitHub action PR
+// images, plugins) build a data:<mime>;base64,... URL and submit via the SDK.
+// Server-side resolvePart routes data: URLs through compressImage. This test
+// proves that pipeline shrinks the persisted attachment, covering the bypass
+// fixed in this changeset.
+it.live(
+  "compresses image data: URL attachments at user message creation",
+  () =>
+    provideTmpdirInstance(
+      () =>
+        Effect.gen(function* () {
+          const fixture = path.join(import.meta.dir, "..", "tool", "fixtures", "large-image.png")
+          const original = yield* Effect.promise(() => Bun.file(fixture).arrayBuffer())
+          const originalBase64 = Buffer.from(original).toString("base64")
+          const dataUrl = `data:image/png;base64,${originalBase64}`
+
+          const { prompt, chat } = yield* boot()
+          const result = yield* prompt.prompt({
+            sessionID: chat.id,
+            messageID: MessageID.ascending(),
+            model: ref,
+            agent: "build",
+            noReply: true,
+            parts: [
+              { type: "text", text: "look at this image" },
+              {
+                type: "file",
+                url: dataUrl,
+                mime: "image/png",
+                filename: "large-image.png",
+              },
+            ],
+          })
+
+          const filePart = result.parts.find((p): p is MessageV2.FilePart => p.type === "file")
+          expect(filePart).toBeDefined()
+          if (!filePart) return
+
+          // The data: URL must have been rewritten — re-encoded as JPEG and
+          // shrunk well below the original PNG size.
+          expect(filePart.mime).toBe("image/jpeg")
+          expect(filePart.url.startsWith("data:image/jpeg;base64,")).toBe(true)
+
+          const compressedBase64 = filePart.url.slice("data:image/jpeg;base64,".length)
+          const compressedBytes = Buffer.from(compressedBase64, "base64")
+          expect(compressedBytes.byteLength).toBeLessThan(original.byteLength / 2)
+        }),
+      { git: true, config: cfg },
+    ),
+  15_000,
+)
+
+it.live(
+  "passes image data: URL through untouched when below min_bytes",
+  () =>
+    provideTmpdirInstance(
+      () =>
+        Effect.gen(function* () {
+          // Tiny valid PNG header — well below the 256KB min_bytes threshold.
+          const tiny = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+          const dataUrl = `data:image/png;base64,${Buffer.from(tiny).toString("base64")}`
+
+          const { prompt, chat } = yield* boot()
+          const result = yield* prompt.prompt({
+            sessionID: chat.id,
+            messageID: MessageID.ascending(),
+            model: ref,
+            agent: "build",
+            noReply: true,
+            parts: [
+              { type: "text", text: "tiny" },
+              { type: "file", url: dataUrl, mime: "image/png", filename: "tiny.png" },
+            ],
+          })
+
+          const filePart = result.parts.find((p): p is MessageV2.FilePart => p.type === "file")
+          expect(filePart).toBeDefined()
+          if (!filePart) return
+          // Below threshold — mime preserved, identity passthrough.
+          expect(filePart.mime).toBe("image/png")
+          expect(filePart.url).toBe(dataUrl)
+        }),
+      { git: true, config: cfg },
+    ),
+  15_000,
+)

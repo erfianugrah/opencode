@@ -3,6 +3,7 @@ import path from "path"
 import { Effect, Layer } from "effect"
 import { FetchHttpClient } from "effect/unstable/http"
 import { Agent } from "../../src/agent/agent"
+import { Config } from "../../src/config"
 import { Truncate } from "../../src/tool"
 import { Instance } from "../../src/project/instance"
 import { WebFetchTool } from "../../src/tool/webfetch"
@@ -30,7 +31,7 @@ function exec(args: { url: string; format: "text" | "markdown" | "html" }) {
   return WebFetchTool.pipe(
     Effect.flatMap((info) => info.init()),
     Effect.flatMap((tool) => tool.execute(args, ctx)),
-    Effect.provide(Layer.mergeAll(FetchHttpClient.layer, Truncate.defaultLayer, Agent.defaultLayer)),
+    Effect.provide(Layer.mergeAll(FetchHttpClient.layer, Truncate.defaultLayer, Agent.defaultLayer, Config.defaultLayer)),
     Effect.runPromise,
   )
 }

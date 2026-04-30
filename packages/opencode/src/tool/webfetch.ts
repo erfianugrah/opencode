@@ -3,7 +3,8 @@ import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 import * as Tool from "./tool"
 import TurndownService from "turndown"
 import DESCRIPTION from "./webfetch.txt"
-import { isImageAttachment } from "@/util/media"
+import { compressImage, imageCompressOpts, isImageAttachment } from "@/util/media"
+import { Config } from "@/config"
 
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024 // 5MB
 const DEFAULT_TIMEOUT = 30 * 1000 // 30 seconds
@@ -24,6 +25,7 @@ export const WebFetchTool = Tool.define(
   Effect.gen(function* () {
     const http = yield* HttpClient.HttpClient
     const httpOk = HttpClient.filterStatusOk(http)
+    const cfg = yield* Config.Service
 
     return {
       description: DESCRIPTION,
@@ -106,7 +108,10 @@ export const WebFetchTool = Tool.define(
           const title = `${params.url} (${contentType})`
 
           if (isImageAttachment(mime)) {
-            const base64Content = Buffer.from(arrayBuffer).toString("base64")
+            const info = yield* cfg.get()
+            const out = yield* Effect.promise(() =>
+              compressImage(new Uint8Array(arrayBuffer), mime, imageCompressOpts(info.media)),
+            )
             return {
               title,
               output: "Image fetched successfully",
@@ -114,8 +119,8 @@ export const WebFetchTool = Tool.define(
               attachments: [
                 {
                   type: "file" as const,
-                  mime,
-                  url: `data:${mime};base64,${base64Content}`,
+                  mime: out.mime,
+                  url: `data:${out.mime};base64,${Buffer.from(out.bytes).toString("base64")}`,
                 },
               ],
             }

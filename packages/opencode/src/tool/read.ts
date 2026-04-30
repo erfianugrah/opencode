@@ -9,7 +9,8 @@ import DESCRIPTION from "./read.txt"
 import { Instance } from "../project/instance"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import { Instruction } from "../session/instruction"
-import { isImageAttachment, isPdfAttachment, sniffAttachmentMime } from "@/util/media"
+import { compressImage, imageCompressOpts, isImageAttachment, isPdfAttachment, sniffAttachmentMime } from "@/util/media"
+import { Config } from "@/config"
 
 const DEFAULT_READ_LIMIT = 2000
 const MAX_LINE_LENGTH = 2000
@@ -39,6 +40,7 @@ export const ReadTool = Tool.define(
     const fs = yield* AppFileSystem.Service
     const instruction = yield* Instruction.Service
     const lsp = yield* LSP.Service
+    const cfg = yield* Config.Service
     const scope = yield* Scope.Scope
 
     const miss = Effect.fn("ReadTool.miss")(function* (filepath: string) {
@@ -219,7 +221,11 @@ export const ReadTool = Tool.define(
 
       const mime = sniffAttachmentMime(sample, AppFileSystem.mimeType(filepath))
       if (isImageAttachment(mime) || isPdfAttachment(mime)) {
-        const bytes = yield* fs.readFile(filepath)
+        const raw = yield* fs.readFile(filepath)
+        const info = yield* cfg.get()
+        const out = isImageAttachment(mime)
+          ? yield* Effect.promise(() => compressImage(raw, mime, imageCompressOpts(info.media)))
+          : { bytes: raw, mime }
         const msg = isPdfAttachment(mime) ? "PDF read successfully" : "Image read successfully"
         return {
           title,
@@ -232,8 +238,8 @@ export const ReadTool = Tool.define(
           attachments: [
             {
               type: "file" as const,
-              mime,
-              url: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`,
+              mime: out.mime,
+              url: `data:${out.mime};base64,${Buffer.from(out.bytes).toString("base64")}`,
             },
           ],
         }

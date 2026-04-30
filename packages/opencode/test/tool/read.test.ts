@@ -2,6 +2,7 @@ import { afterEach, describe, expect } from "bun:test"
 import { Cause, Effect, Exit, Layer } from "effect"
 import path from "path"
 import { Agent } from "../../src/agent/agent"
+import { Config } from "../../src/config"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { LSP } from "../../src/lsp"
@@ -37,6 +38,7 @@ const it = testEffect(
   Layer.mergeAll(
     Agent.defaultLayer,
     AppFileSystem.defaultLayer,
+    Config.defaultLayer,
     CrossSpawnSpawner.defaultLayer,
     Instruction.defaultLayer,
     LSP.defaultLayer,
