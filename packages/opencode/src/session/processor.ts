@@ -507,9 +507,14 @@ export const layer: Layer.Layer<
         }
         ctx.reasoningMap = {}
 
+        // Wait for in-flight tool calls to settle before marking them aborted.
+        // 250ms upstream default was too short — a single Write on a 1300+ line
+        // file (pre-flight diff calc + filesystem + LSP ack) easily takes seconds.
+        // Bumped to 30s so reasonable tool latencies complete; genuinely stuck
+        // tools still get aborted (user can ctrl+c to force shutdown).
         yield* Effect.forEach(
           Object.values(ctx.toolcalls),
-          (call) => Deferred.await(call.done).pipe(Effect.timeout("250 millis"), Effect.ignore),
+          (call) => Deferred.await(call.done).pipe(Effect.timeout("30 seconds"), Effect.ignore),
           { concurrency: "unbounded" },
         )
 
