@@ -17,6 +17,7 @@ import { usable } from "./overflow"
 import { Bus } from "../bus"
 import { ProviderTransform } from "../provider"
 import { SystemPrompt } from "./system"
+import { Superpowers } from "./superpowers"
 import { Instruction } from "./instruction"
 import { Plugin } from "../plugin"
 import PROMPT_PLAN from "../session/prompt/plan.txt"
@@ -164,6 +165,7 @@ export const layer = Layer.effect(
     const revert = yield* SessionRevert.Service
     const summary = yield* SessionSummary.Service
     const sys = yield* SystemPrompt.Service
+    const superpowers = yield* Superpowers.Service
     const llm = yield* LLM.Service
     const cfg = yield* Config.Service
     const mem = yield* Memory.Service
@@ -1590,6 +1592,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               }
             }
 
+            yield* superpowers.maybeInject(msgs as unknown as Parameters<typeof superpowers.maybeInject>[0])
             yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
             const [skills, env, instructions, modelMsgs] = yield* Effect.all([
@@ -1852,6 +1855,7 @@ export const defaultLayer = Layer.suspend(() =>
       Layer.mergeAll(
         Agent.defaultLayer,
         SystemPrompt.defaultLayer,
+        Superpowers.defaultLayer,
         LLM.defaultLayer,
         Bus.layer,
         CrossSpawnSpawner.defaultLayer,

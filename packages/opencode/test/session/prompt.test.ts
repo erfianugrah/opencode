@@ -34,6 +34,7 @@ import { SessionStatus } from "../../src/session/status"
 import { Memory } from "../../src/memory"
 import { Skill } from "../../src/skill"
 import { SystemPrompt } from "../../src/session/system"
+import { Superpowers } from "../../src/session/superpowers"
 import { Shell } from "../../src/shell/shell"
 import { Snapshot } from "../../src/snapshot"
 import { ToolRegistry } from "../../src/tool"
@@ -199,6 +200,7 @@ function makeHttp() {
       Layer.provideMerge(trunc),
       Layer.provide(Instruction.defaultLayer),
       Layer.provide(SystemPrompt.defaultLayer),
+      Layer.provide(Superpowers.defaultLayer),
       Layer.provideMerge(deps),
     ),
   ).pipe(Layer.provide(summary))

@@ -43,6 +43,7 @@ import { Question } from "../../src/question"
 import { Memory } from "../../src/memory"
 import { Skill } from "../../src/skill"
 import { SystemPrompt } from "../../src/session/system"
+import { Superpowers } from "../../src/session/superpowers"
 import { Todo } from "../../src/session/todo"
 import { SessionCompaction } from "../../src/session/compaction"
 import { Instruction } from "../../src/session/instruction"
@@ -153,6 +154,7 @@ function makeHttp() {
       Layer.provideMerge(trunc),
       Layer.provide(Instruction.defaultLayer),
       Layer.provide(SystemPrompt.defaultLayer),
+      Layer.provide(Superpowers.defaultLayer),
       Layer.provideMerge(deps),
     ),
   )
