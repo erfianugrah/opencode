@@ -312,8 +312,72 @@ Available to all agents, not just primary.
 - Tests: `test/tool/oci-tags.test.ts` (parse, live registry queries, sort, filter)
 - CLI fallback: `script/oci-tags` (bash, requires jq)
 
+### Superpowers methodology injection
+
+Conditional injection of the [obra/superpowers](https://github.com/obra/superpowers)
+`using-superpowers/SKILL.md` methodology bootstrap into the first user message
+of a session. Replaces the external opencode plugin pattern with a first-party
+Effect service.
+
+**Token economy:** skill name+description for all 14 superpowers skills already
+appears in the system prompt via `SystemPrompt.skills()`. The full methodology
+bootstrap (~1.5k tokens) is loaded only when the first user message matches a
+build/debug intent regex (or contains the `<superpowers>` token). Q&A and
+read-only sessions pay no extra cost.
+
+**Three access paths:**
+
+1. **Automatic — intent regex.** First user message matching verbs like
+   `implement|build|create|debug|refactor|TDD|fix the (bug|error|crash)|add a
+   (feature|function|test|component)|write (tests|specs)` triggers injection.
+   Tuned to avoid false positives on `write a summary`, `add a comment`, etc.
+2. **Forced — `<superpowers>` token.** Embed anywhere in your message to
+   inject regardless of intent regex. Useful when the prompt doesn't look like
+   a build task but you want methodology context.
+3. **Manual skill load.** The 14 superpowers skills are listed in the system
+   prompt as `<available_skills>` — call the `skill` tool with a name (e.g.
+   `test-driven-development`, `systematic-debugging`,
+   `verification-before-completion`) to load that specific SKILL.md inline.
+
+**Session-ID dedup.** opencode reloads messages from DB at every agent step.
+The service tracks injected session IDs in an `InstanceState` Set so the
+bootstrap fires exactly once per session, not once per step. Skip decisions
+are also cached.
+
+**Skills directory.** The service reads
+`$OPENCODE_CONFIG_DIR/skills/superpowers/using-superpowers/SKILL.md` by
+default. Skills themselves are vendored in
+[erfianugrah/dotfiles](https://github.com/erfianugrah/dotfiles) at
+`.config/opencode/skills/superpowers/` and synced via
+`bin/superpowers-sync` (clone obra/superpowers → rsync skills/ → write
+`.sync.json` with commit sha). Updates without rebuilding the binary.
+
+**Controls (env):**
+
+- `OPENCODE_SUPERPOWERS_OFF=1` — disable injection entirely
+- `OPENCODE_SUPERPOWERS_BOOTSTRAP=/path/to/SKILL.md` — override bootstrap path
+
+**Verify it fired:**
+
+```bash
+opencode run --print-logs "implement fibonacci" 2>&1 | rg 'service=superpowers'
+# INFO ... service=superpowers bytes=5607 decision=intent session=ses_… injected
+```
+
+**Code + tests:**
+
+- Service: `packages/opencode/src/session/superpowers.ts` (Effect service with
+  pure helpers + `InstanceState`-backed session dedup)
+- Wired into: `packages/opencode/src/session/prompt.ts` (call before
+  `experimental.chat.messages.transform` plugin trigger)
+- Tests: `packages/opencode/test/session/superpowers.test.ts` (23 cases —
+  pure helpers, intent regex hygiene, edge cases, session dedup, kill switch,
+  missing bootstrap file)
+- Sync script in dotfiles: `bin/superpowers-sync` (with `--status`, `--check`,
+  `--ref` flags for version pinning)
+
 ## Branch strategy
 
 - `dev` = upstream `dev` + fork modifications
-- Fork changes: persistent memory + session search, style toggle + indicator, safety guardrail, title fallback, LaTeX sanitization, gemma/qwen routing, local model discovery, oci-tags
-- Upstream merges may need conflict resolution in `config.ts`, `prompt.ts`, `processor.ts`, `system.ts`, `provider.ts`, `transform.ts`, `message-v2.ts`, `registry.ts`
+- Fork changes: persistent memory + session search, style toggle + indicator, safety guardrail, title fallback, LaTeX sanitization, gemma/qwen routing, local model discovery, oci-tags, superpowers methodology injection
+- Upstream merges may need conflict resolution in `config.ts`, `prompt.ts`, `processor.ts`, `system.ts`, `superpowers.ts`, `provider.ts`, `transform.ts`, `message-v2.ts`, `registry.ts`
