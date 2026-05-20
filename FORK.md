@@ -44,9 +44,10 @@ Quit OpenCode first — the binary can't be overwritten while running.
 ### Individual steps
 
 ```bash
-make sync      # fetch upstream dev and merge
-make build     # install deps and compile binary
-make install   # back up current binary, install new build
+make sync-preview   # show upstream changes without merging (read-only)
+make sync           # tag rollback + fetch + prompt + merge + typecheck + push
+make build          # install deps and compile binary
+make install        # back up current binary, install new build
 ```
 
 ### Restore official release
@@ -60,13 +61,47 @@ Or set `"autoupdate": true` in `opencode.json` and restart.
 ### All targets
 
 ```
-make update       Sync upstream + build + install (do it all)
-make sync         Fetch upstream dev and merge
-make build        Install deps and compile binary
-make install      Back up current binary and install new build
-make uninstall    Restore backed-up official binary
-make clean        Remove build artifacts
+make update         Sync upstream + build + install (do it all)
+make sync-preview   Show upstream changes since last sync (read-only)
+make sync           Tag rollback + fetch + prompt + merge + typecheck + push
+make sync-tags      List recent pre-sync rollback tags
+make sync-rollback  Hard-reset to most recent pre-sync tag
+make build          Install deps and compile binary
+make install        Back up current binary and install new build
+make uninstall      Restore backed-up official binary
+make clean          Remove build artifacts
 ```
+
+### Sync safety
+
+`make sync` is more cautious than a plain `git merge`:
+
+1. **Pre-flight summary**: shows commit count and which hot files upstream touched
+2. **Auto-tag**: creates `pre-sync-YYYYMMDD-HHMMSS` before merging — easy rollback
+3. **Confirmation prompt**: requires `y` to proceed (skip via `SYNC_YES=1 make sync`)
+4. **Post-merge typecheck**: bails before push if `bun typecheck` fails
+5. **Conflict guidance**: if merge fails, prints exact commands to inspect/resolve/abort
+
+To roll back: `make sync-rollback` (resets HEAD to most recent pre-sync tag).
+List tags: `make sync-tags`.
+
+### Hot files
+
+Files where upstream changes most often conflict with fork patches. Watch
+these when syncing — `make sync-preview` highlights them:
+
+- `packages/opencode/src/config/config.ts`
+- `packages/opencode/src/session/prompt.ts` (heaviest conflict surface)
+- `packages/opencode/src/session/processor.ts`
+- `packages/opencode/src/session/system.ts`
+- `packages/opencode/src/session/superpowers.ts` (fork-only file — only conflicts if upstream lands a similar feature)
+- `packages/opencode/src/provider/provider.ts`
+- `packages/opencode/src/provider/transform.ts`
+- `packages/opencode/src/session/message-v2.ts`
+- `packages/opencode/src/tool/registry.ts`
+- `package.json` (catalog version pins, e.g. opentui)
+
+Keep this list in sync with the `HOT_FILES` variable at the top of `Makefile`.
 
 ## Automated upstream sync
 
@@ -74,6 +109,9 @@ A GitHub Action (`.github/workflows/fork-sync.yml`) syncs upstream `dev` daily
 at 06:00 UTC. If there's a merge conflict, it skips and you resolve manually.
 
 You can also trigger it manually from the Actions tab.
+
+The automated workflow is conservative (aborts on conflict). The manual `make
+sync` adds the tag + typecheck safety net for interactive use.
 
 ## OpenCode config
 
